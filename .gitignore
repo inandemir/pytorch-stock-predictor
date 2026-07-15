@@ -1,0 +1,26 @@
+# Python temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# PyTorch weights
+*.pth
+
+# Large Datasets and Downloads
+data/*.csv
+archive.zip
+
+# Frontend generated charts
+static/stock_chart.png
+
+# OS metadata
+.DS_Store
+Thumbs.db
