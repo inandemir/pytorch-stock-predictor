@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .pytest_cache/
 .ipynb_checkpoints/
+*.pkl
 
 # Virtual environments
 venv/

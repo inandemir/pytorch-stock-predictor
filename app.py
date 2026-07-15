@@ -28,6 +28,12 @@ def is_safe_filename(filename):
 # Initialize Stock Predictor
 stock_predictor = StockPredictorEngine(data_dir=DATA_DIR)
 
+from sentiment_analyzer import SentimentAnalyzer
+sentiment_analyzer = SentimentAnalyzer()
+thread = threading.Thread(target=sentiment_analyzer.train_or_load)
+thread.daemon = True
+thread.start()
+
 # Global Training State
 stock_training_state = {
     "status": "idle", # idle, training, ready, error
@@ -303,11 +309,14 @@ def generate_stock_report():
                 pub_date = content.get('pubDate') or item.get('pubDate') or ""
                 provider = content.get('provider', {}).get('displayName', item.get('provider', {}).get('displayName', 'Bilinmeyen'))
                 if title:
+                    # Run Sentiment Analysis
+                    sentiment_score = sentiment_analyzer.analyze(title + " " + summary)
                     retrieved_news.append({
                         "title": title,
                         "summary": summary[:250] + "..." if len(summary) > 250 else summary,
                         "pub_date": pub_date,
-                        "provider": provider
+                        "provider": provider,
+                        "sentiment": sentiment_score
                     })
         except Exception as e:
             yield f"data: {json.dumps({'type': 'status', 'text': f'Haberler çekilirken hata oluştu fakat analize devam ediliyor: {str(e)}'})}\n\n"
@@ -316,9 +325,21 @@ def generate_stock_report():
         yield f"data: {json.dumps({'type': 'status', 'text': 'Veriler sentezleniyor ve Yapay Zeka Analizi yazılıyor...'})}\n\n"
         
         news_context = ""
+        avg_sentiment = 0.0
         if retrieved_news:
+            total_sentiment = 0.0
             for idx, n in enumerate(retrieved_news):
-                news_context += f"{idx+1}. Başlık: {n['title']}\n   Kaynak: {n['provider']} ({n['pub_date']})\n   Özet: {n['summary']}\n\n"
+                sent_label = "Nötr"
+                if n['sentiment'] > 0.15:
+                    sent_label = f"Olumlu (Skor: {n['sentiment']:+.2f})"
+                elif n['sentiment'] < -0.15:
+                    sent_label = f"Olumsuz (Skor: {n['sentiment']:+.2f})"
+                else:
+                    sent_label = f"Nötr (Skor: {n['sentiment']:+.2f})"
+                    
+                news_context += f"{idx+1}. Başlık: {n['title']}\n   Kaynak: {n['provider']} ({n['pub_date']})\n   Haber Analiz Duygusu: {sent_label}\n   Özet: {n['summary']}\n\n"
+                total_sentiment += n['sentiment']
+            avg_sentiment = total_sentiment / len(retrieved_news)
         else:
             news_context = "Son haberlere ulaşılamadı.\n"
             
@@ -332,7 +353,10 @@ Yapay Zeka (LSTM) Tahmin Verileri:
 - Tahmin Edilen Değişim: {price_change:+.2f} ({pct_change:+.2f}%)
 - Öngörülen Trend: {trend_direction}
 
-Yahoo Finance'ten Alınan Son Haberler (RAG Bağlamı):
+Yahoo Finance'ten Alınan Son Haberler ve NLP Duygu Analizi Skorları (RAG Bağlamı):
+- Güncel Haberlerin Ortalama Duygu Skoru: {avg_sentiment:+.2f} (Ölçek: -1.0 olumsuz, 0.0 nötr, +1.0 olumlu)
+
+Haber Listesi:
 {news_context}
 
 Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:

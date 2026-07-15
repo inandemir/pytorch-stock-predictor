@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 
 # Define the LSTM Model Class
 class StockLSTM(nn.Module):
-    def __init__(self, input_dim=1, hidden_dim=32, num_layers=2, output_dim=1):
+    def __init__(self, input_dim=5, hidden_dim=32, num_layers=2, output_dim=1):
         super(StockLSTM, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         
-        # LSTM layer
+        # LSTM layer (input_dim=5 features)
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
         # Fully connected readout layer
         self.fc = nn.Linear(hidden_dim, output_dim)
@@ -40,6 +40,10 @@ class StockPredictorEngine:
         self.lookback = 20
         self.last_prices = [] # Store last prices of selected stock for prepopulating
         
+        # Target scaling parameters for prediction decoding
+        self.close_scale = 1.0
+        self.close_min = 0.0
+        
     def list_stocks(self):
         """Lists available stock CSV files in the data directory."""
         if not os.path.exists(self.data_dir):
@@ -55,28 +59,50 @@ class StockPredictorEngine:
         return stocks
 
     def prepare_data(self, filepath):
-        """Loads and processes stock data from a CSV file."""
+        """Loads and processes stock data from a CSV file with multi-features (Close, Volume, MA5, MA20, RSI)."""
         df = pd.read_csv(filepath)
         # Sort by Date if present
         if "Date" in df.columns:
             df['Date'] = pd.to_datetime(df['Date'])
             df = df.sort_values('Date')
             
-        # Get Close price
-        close_prices = df['Close'].values.astype(float).reshape(-1, 1)
-        self.last_prices = close_prices[-self.lookback:].flatten().tolist()
+        # Calculate MA5 and MA20 on Close price
+        df['MA5'] = df['Close'].rolling(window=5).mean()
+        df['MA20'] = df['Close'].rolling(window=20).mean()
         
-        # Scale data
-        scaled_data = self.scaler.fit_transform(close_prices)
+        # Calculate RSI (14 days)
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / (loss + 1e-9)
+        df['RSI'] = 100 - (100 / (1 + rs))
         
-        # Create sliding sequences
+        # Drop NaN values introduced by rolling windows
+        df = df.dropna()
+        
+        # Extract features: Close, Volume, MA5, MA20, RSI
+        feature_cols = ['Close', 'Volume', 'MA5', 'MA20', 'RSI']
+        features = df[feature_cols].values.astype(float)
+        
+        # Store last 20 close prices for prepopulating
+        self.last_prices = df['Close'].values[-self.lookback:].tolist()
+        
+        # Scale features
+        scaled_features = self.scaler.fit_transform(features)
+        
+        # Store fit parameters to inverse scale the close price predictions later
+        # Since Close is at index 0 of features:
+        self.close_scale = self.scaler.scale_[0]
+        self.close_min = self.scaler.min_[0]
+        
         X, y = [], []
-        for i in range(len(scaled_data) - self.lookback):
-            X.append(scaled_data[i:i + self.lookback])
-            y.append(scaled_data[i + self.lookback])
+        for i in range(len(scaled_features) - self.lookback):
+            X.append(scaled_features[i:i + self.lookback])
+            # Target is the next day's Close price (column index 0)
+            y.append(scaled_features[i + self.lookback, 0])
             
         X = np.array(X)
-        y = np.array(y)
+        y = np.array(y).reshape(-1, 1)
         
         # Split into train / test (80% / 20%)
         split = int(len(X) * 0.8)
@@ -88,7 +114,7 @@ class StockPredictorEngine:
         valid_dates = dates[self.lookback:]
         test_dates = valid_dates[split:]
         
-        return X_train, X_test, y_train, y_test, close_prices, split, test_dates
+        return X_train, X_test, y_train, y_test, df['Close'].values, split, test_dates
 
     def train(self, stock_filename, progress_callback=None, epochs=25):
         """Trains the LSTM model on a specific stock CSV."""
@@ -104,8 +130,8 @@ class StockPredictorEngine:
         X_test_t = torch.tensor(X_test, dtype=torch.float32)
         y_test_t = torch.tensor(y_test, dtype=torch.float32)
         
-        # Create Model
-        self.model = StockLSTM(input_dim=1, hidden_dim=32, num_layers=2, output_dim=1)
+        # Create Model (input_dim=5 features)
+        self.model = StockLSTM(input_dim=5, hidden_dim=32, num_layers=2, output_dim=1)
         criterion = nn.MSELoss()
         optimizer = optim.Adam(self.model.parameters(), lr=0.01)
         
@@ -127,9 +153,9 @@ class StockPredictorEngine:
         with torch.no_grad():
             test_predictions = self.model(X_test_t).numpy()
             
-        # Inverse transform to original prices
-        predictions_unscaled = self.scaler.inverse_transform(test_predictions)
-        y_test_unscaled = self.scaler.inverse_transform(y_test)
+        # Inverse transform Close predictions using scaling parameters
+        predictions_unscaled = (test_predictions - self.close_min) / self.close_scale
+        y_test_unscaled = (y_test - self.close_min) / self.close_scale
         
         # Calculate Metrics
         mse = np.mean((y_test_unscaled - predictions_unscaled) ** 2)
@@ -174,26 +200,67 @@ class StockPredictorEngine:
         plt.close()
 
     def predict_next(self, prices_list):
-        """Predicts the next day's price given a list of lookback closing prices."""
+        """Fallback prediction. Simulates Volume, MA5, MA20 and RSI features to run inference."""
         if not self.model:
             raise ValueError("Model is not trained yet. Train a model first.")
         if len(prices_list) != self.lookback:
             raise ValueError(f"Input prices list must contain exactly {self.lookback} values.")
             
-        # Scale input
-        prices_arr = np.array(prices_list).reshape(-1, 1)
-        scaled_input = self.scaler.transform(prices_arr)
+        dummy_features = []
+        for i, p in enumerate(prices_list):
+            ma5 = np.mean(prices_list[max(0, i-4):i+1])
+            ma20 = np.mean(prices_list[max(0, i-19):i+1])
+            dummy_features.append([p, 100000.0, ma5, ma20, 50.0])
+            
+        dummy_arr = np.array(dummy_features)
+        scaled_input = self.scaler.transform(dummy_arr)
+        input_t = torch.tensor(scaled_input.reshape(1, self.lookback, 5), dtype=torch.float32)
         
-        # Prepare tensor [batch_size=1, sequence_length=lookback, features=1]
-        input_t = torch.tensor(scaled_input.reshape(1, self.lookback, 1), dtype=torch.float32)
+        self.model.eval()
+        with torch.no_grad():
+            scaled_prediction = self.model(input_t).numpy()
+            
+        prediction = (scaled_prediction - self.close_min) / self.close_scale
+        return float(prediction[0][0])
+
+    def predict_next_by_stock(self, stock_filename):
+        """Predicts the next day's price for the selected stock using the last 20 days of multi-features."""
+        if not self.model:
+            raise ValueError("Model is not trained yet. Train a model first.")
+            
+        filepath = os.path.join(self.data_dir, stock_filename)
+        df = pd.read_csv(filepath)
+        if "Date" in df.columns:
+            df['Date'] = pd.to_datetime(df['Date'])
+            df = df.sort_values('Date')
+            
+        df['MA5'] = df['Close'].rolling(window=5).mean()
+        df['MA20'] = df['Close'].rolling(window=20).mean()
+        
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / (loss + 1e-9)
+        df['RSI'] = 100 - (100 / (1 + rs))
+        
+        df = df.dropna()
+        
+        feature_cols = ['Close', 'Volume', 'MA5', 'MA20', 'RSI']
+        last_20_features = df[feature_cols].values[-self.lookback:]
+        
+        # Scale input
+        scaled_input = self.scaler.transform(last_20_features)
+        
+        # Prepare tensor
+        input_t = torch.tensor(scaled_input.reshape(1, self.lookback, 5), dtype=torch.float32)
         
         # Inference
         self.model.eval()
         with torch.no_grad():
             scaled_prediction = self.model(input_t).numpy()
             
-        # Inverse scale
-        prediction = self.scaler.inverse_transform(scaled_prediction)
+        # Decode close price prediction
+        prediction = (scaled_prediction - self.close_min) / self.close_scale
         return float(prediction[0][0])
 
     def get_stock_dates(self, stock_filename):
@@ -209,7 +276,6 @@ class StockPredictorEngine:
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values('Date')
         
-        # We need at least lookback days before any date we predict
         dates = df['Date'].dt.strftime('%Y-%m-%d').tolist()
         if len(dates) <= self.lookback:
             return []
@@ -229,7 +295,6 @@ class StockPredictorEngine:
         df = df.sort_values('Date')
         df['Date_Str'] = df['Date'].dt.strftime('%Y-%m-%d')
         
-        # Find index of selected date
         matches = df[df['Date_Str'] == selected_date]
         if matches.empty:
             raise ValueError(f"Date {selected_date} not found in stock data.")
@@ -238,7 +303,6 @@ class StockPredictorEngine:
         if idx < self.lookback:
             raise ValueError(f"Not enough history before date {selected_date}.")
             
-        # Extract 20 days prior close prices
         prior_rows = df.iloc[idx - self.lookback : idx]
         prior_prices = prior_rows['Close'].values.astype(float).tolist()
         actual_price = float(df.iloc[idx]['Close'])
