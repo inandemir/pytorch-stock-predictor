@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LSTM Borsa Fiyat Tahmin Paneli</title>
+    <title>Local RAG Finansal Yapay Zeka Ajanı</title>
     <!-- Google Fonts: Inter and Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,8 +23,8 @@
                     <line x1="6" y1="20" x2="6" y2="14"/>
                 </svg>
                 <div class="logo-text">
-                    <h1>Borsa Tahmin Kontrol Paneli</h1>
-                    <span class="logo-sub">PyTorch Cihaz Üstü Yapay Zeka LSTM Modeli</span>
+                    <h1>Local RAG Finansal Yapay Zeka Ajanı</h1>
+                    <span class="logo-sub">PyTorch & Yerel Dil Modeli (Qwen 2.5) Sentezi</span>
                 </div>
             </div>
             <div class="header-status">
@@ -33,210 +33,92 @@
             </div>
         </header>
 
-        <!-- MAIN LAYOUT -->
-        <main class="app-main">
-            <!-- LEFT PANEL: Stock Selection & Training -->
-            <section class="panel model-panel">
-                <div class="panel-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="panel-icon">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                    </svg>
-                    <h2>Hisse Seçimi</h2>
-                </div>
-                
-                <div class="panel-content">
-                    <!-- Ticker Download Card -->
-                    <div class="ticker-download-card card" style="margin-bottom: 5px;">
-                        <div class="card-title">Yeni Hisse Verisi İndir</div>
-                        <p class="specs-desc" style="margin-bottom: 10px; font-size:0.75rem;">Yahoo Finance üzerinden dilediğiniz hissenin (örn: NVDA, TSLA, MSFT, BTC-USD) 2018'den günümüze (2026) güncel verilerini anında indirin.</p>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="ticker-input" class="form-input" placeholder="Örn: NVDA" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:8px 12px; color:white; font-weight:600; outline:none; text-transform:uppercase; font-family: var(--font-sans); font-size:0.88rem;">
-                            <button id="btn-download-ticker" class="btn btn-primary" style="padding:8px 16px; border-radius:10px; font-size:0.85rem;">İndir</button>
-                        </div>
+        <!-- MAIN LAYOUT (2 Columns) -->
+        <main class="app-main" style="grid-template-columns: 1fr 1fr; height: calc(100vh - 120px);">
+            <!-- LEFT COLUMN: Input, Progress, and Price Chart -->
+            <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 24px;">
+                <!-- SEARCH & CONTROL CARD -->
+                <div class="card" style="padding: 20px;">
+                    <div class="card-title">Hisse Senedi Analizi Başlat</div>
+                    <p class="specs-desc" style="margin-bottom: 15px; font-size:0.8rem;">Dilediğiniz hissenin kodunu yazın. Sistem verileri güncelleyecek, PyTorch LSTM modelini otomatik eğitecek ve RAG raporunu oluşturacaktır.</p>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <input type="text" id="ticker-input" class="form-input" placeholder="Örn: AAPL, NVDA, TSLA, BTC-USD" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:12px; padding:12px 16px; color:white; font-weight:600; outline:none; text-transform:uppercase; font-size:0.95rem;">
+                        <button id="btn-analyze" class="btn btn-primary" style="padding:12px 28px; border-radius:12px; font-size:0.95rem; font-weight:700;">Analiz Et (RAG)</button>
                     </div>
 
-                    <div class="model-selection">
-                        <label for="stock-select">Tahmin Edilecek Hisse:</label>
-                        <select id="stock-select" class="form-select">
-                            <option value="" disabled selected>Hisseler yükleniyor...</option>
-                        </select>
+                    <!-- Status Display -->
+                    <div class="state-indicator" style="margin-top: 10px;">
+                        <div class="state-label">İşlem Durumu:</div>
+                        <div class="state-val" id="process-state-val" style="color: var(--text-muted);">Boşta</div>
                     </div>
 
-                    <!-- Training Status Card -->
-                    <div class="model-status-card card" id="stock-status-card">
-                        <div class="card-title">LSTM Model Eğitimi</div>
-                        <div class="state-indicator">
-                            <div class="state-label">Durum:</div>
-                            <div class="state-val" id="stock-state-val">Boşta</div>
+                    <!-- Training Progress Bar -->
+                    <div class="progress-container" id="stock-progress-container" style="display:none; margin-top:10px;">
+                        <div class="progress-header">
+                            <span id="stock-progress-label">LSTM Model Eğitiliyor</span>
+                            <span id="stock-progress-percent">Epoch: 0/25</span>
                         </div>
-                        <div class="state-indicator" id="stock-active-row" style="display:none;">
-                            <div class="state-label">Aktif Hisse:</div>
-                            <div class="state-val" id="stock-active-val">Yok</div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="stock-progress-bar-fill" style="width: 0%;"></div>
                         </div>
-                        
-                        <!-- Training Progress Bar -->
-                        <div class="progress-container" id="stock-progress-container" style="display:none;">
-                            <div class="progress-header">
-                                <span id="stock-progress-label">Model Eğitiliyor</span>
-                                <span id="stock-progress-percent">Epoch: 0/25</span>
-                            </div>
-                            <div class="progress-bar-bg">
-                                <div class="progress-bar-fill" id="stock-progress-bar-fill" style="width: 0%;"></div>
-                            </div>
-                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;" id="stock-loss-val">Loss: 0.0000</div>
-                        </div>
-                        
-                        <!-- Interactive Training Console -->
-                        <div class="training-console" id="training-console">Sistem hazır. Başlamak için soldan bir hisse seçin ve "LSTM Modelini Eğit" butonuna tıklayın.</div>
-                        
-                        <button class="btn btn-primary w-100" id="btn-train-stock" style="margin-top: 15px;" disabled>LSTM Modelini Eğit</button>
-                    </div>
-
-                    <!-- Tech specs info -->
-                    <div class="specs-info card">
-                        <div class="card-title">Model Parametreleri</div>
-                        <p class="specs-desc">Sürgülü pencere (sliding window) genişliği: <strong>20 Gün</strong>.<br>Ağ yapısı: <strong>2 Katmanlı LSTM + 32 Gizli Hücre</strong>.<br>Optimizasyon: <strong>Adam Optimizer (lr=0.01)</strong>.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- CENTER PANEL: Evaluation Chart & Prediction -->
-            <section class="chat-container">
-                <div class="chat-header">
-                    <div class="chat-title-info">
-                        <h2>Model Değerlendirme ve Gelecek Tahmini</h2>
-                        <span class="chat-subtitle" id="stock-model-info">Model eğitilmedi</span>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;" id="stock-loss-val">Loss: 0.0000</div>
                     </div>
                 </div>
 
-                <div class="chat-messages" style="padding:20px; overflow-y:auto;">
-                    <!-- KPI Metrics Grid -->
-                    <div class="kpi-container" id="kpi-container" style="display:none;">
-                        <div class="kpi-card">
-                            <div class="kpi-label">Hisse Senedi</div>
-                            <div class="kpi-value purple" id="kpi-ticker">-</div>
-                        </div>
-                        <div class="kpi-card">
-                            <div class="kpi-label">Hata Payı (RMSE)</div>
-                            <div class="kpi-value" id="kpi-rmse">0.0000</div>
-                        </div>
-                        <div class="kpi-card">
-                            <div class="kpi-card-inner">
-                                <div class="kpi-label">Tahmin Doğruluğu</div>
-                                <div class="kpi-value green" id="kpi-accuracy">%0.0</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Chart container -->
-                    <div class="stock-chart-container" id="stock-chart-container">
+                <!-- CHART CARD -->
+                <div class="card flex-grow" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 320px;">
+                    <div class="card-title">Hisse Fiyat Trendi (Gerçek vs LSTM Tahmini)</div>
+                    <div class="stock-chart-container" id="stock-chart-container" style="flex-grow: 1; border: none; background: transparent; padding: 0; min-height: unset; justify-content: center;">
                         <div class="empty-chart-placeholder" id="chart-placeholder">
-                            <div class="chart-placeholder-icon">📊</div>
-                            <span>Grafik yüklenmesi için soldan bir hisse senedi seçip modeli eğitin.</span>
+                            <div class="chart-placeholder-icon">📈</div>
+                            <span>Yukarıdan bir hisse senedi girip "Analiz Et" butonuna tıklayın.</span>
                         </div>
-                        <div id="stock-apex-chart"></div>
-                    </div>
-
-                    <!-- Date Selection / Custom Inputs -->
-                    <div class="prediction-box card" id="prediction-box" style="display:none;">
-                        <div class="card-title">Hisse Fiyatı Tahmini Yap</div>
-                        
-                        <div style="margin-bottom: 18px;">
-                            <label for="stock-date-select" style="font-size:0.82rem; color:var(--text-muted); display:block; margin-bottom:8px; font-weight:600;">Veri Setinden Tarih Seçin:</label>
-                            <select id="stock-date-select" class="form-select">
-                                <option value="" disabled selected>Tarih listesi yükleniyor...</option>
-                            </select>
-                            <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:6px;">Seçtiğiniz tarihten önceki 20 günlük borsa kapanış fiyatları otomatik olarak aşağıdaki kutuya doldurulacaktır.</span>
-                        </div>
-
-                        <div class="prediction-inputs">
-                            <label for="stock-prices-input">Girdi Fiyatları (Kapanış - Son 20 Gün):</label>
-                            <textarea id="stock-prices-input" rows="3" placeholder="Örn: 74.2, 74.8, 75.1... (Toplam 20 fiyat)"></textarea>
-                        </div>
-                        
-                        <button class="btn btn-primary w-100" id="btn-predict-stock">Hisse Fiyatını Tahmin Et</button>
-                        
-                        <!-- Prediction Result Callout -->
-                        <div class="prediction-result" id="prediction-result" style="display:none;">
-                            <div class="prediction-grid">
-                                <div class="prediction-metric">
-                                    <div class="prediction-metric-label">Seçilen Günün Gerçek Fiyatı</div>
-                                    <div class="prediction-metric-val" id="actual-val">$0.00</div>
-                                </div>
-                                <div class="prediction-metric">
-                                    <div class="prediction-metric-label">Yapay Zeka Tahmini</div>
-                                    <div class="prediction-metric-val green" id="prediction-val">$0.00</div>
-                                </div>
-                            </div>
-                            <div class="prediction-diff-bar" id="prediction-diff">Sapma Oranı: %0.00</div>
-                        </div>
-                    </div>
-
-                    <!-- AI RAG Report Card -->
-                    <div class="rag-report-box card" id="rag-report-box" style="display:none; margin-top:20px;">
-                        <div class="card-title">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
-                        <p class="specs-desc" style="margin-bottom: 15px; font-size:0.78rem;">Seçili hisseye dair en son haber başlıklarını çeker, LSTM fiyat tahmini ile birleştirir ve cihazınızdaki yerel dil modeli (LLM) ile detaylı yatırım raporu yazar.</p>
-                        
-                        <!-- RAG Progress container -->
-                        <div class="rag-loading-container" id="rag-loading-container" style="display:none; margin-bottom:15px;">
-                            <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-                                <div class="spinner-glow"></div>
-                                <span id="rag-loading-text" style="font-size:0.85rem; font-weight:600; color:var(--neon-blue);">Yapay zeka analiz yapıyor...</span>
-                            </div>
-                        </div>
-
-                        <button class="btn btn-primary w-100" id="btn-generate-report" style="background:var(--accent-gradient); box-shadow: 0 4px 20px rgba(138, 43, 226, 0.25);">AI Yatırım Raporu Oluştur (RAG)</button>
-
-                        <!-- Generated report markdown container -->
-                        <div class="rag-report-output" id="rag-report-output" style="display:none; margin-top:20px;">
-                            <div class="report-content" id="report-content-markdown"></div>
-                        </div>
+                        <div id="stock-apex-chart" style="width: 100%;"></div>
                     </div>
                 </div>
             </section>
 
-            <!-- RIGHT PANEL: PYTORCH LSTM ARCHITECTURE EXPLANATION -->
-            <section class="panel docs-panel">
-                <div class="panel-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="panel-icon">
-                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-                        <line x1="6" y1="10" x2="6" y2="14"/>
-                        <line x1="18" y1="10" x2="18" y2="14"/>
-                    </svg>
-                    <h2>LSTM Mimarisi</h2>
-                </div>
-
-                <div class="panel-content flex-grow" style="overflow-y:auto; padding:24px;">
-                    <div class="arch-card-list">
-                        <div class="arch-card">
-                            <div class="arch-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                                <span>Neden PyTorch & LSTM?</span>
-                            </div>
-                            <p class="arch-desc">Hisse senedi fiyatları gibi zaman serisi verileri ardışıktır. Klasik yapay zekalar zaman içindeki trendleri hafızasında tutamaz. <strong>Long Short-Term Memory (LSTM)</strong> hücreleri, özel geçit mekanizmaları sayesinde geçmiş bilgileri uzun süre saklayarak borsa analizinde yüksek başarı sağlar.</p>
-                        </div>
-
-                        <div class="arch-card">
-                            <div class="arch-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></svg>
-                                <span>Veri Normalizasyonu</span>
-                            </div>
-                            <p class="arch-desc">Eğitimden önce verileri <code>MinMaxScaler</code> ile <code>[-1, 1]</code> aralığına sıkıştırırız. Verileri 20 günlük kayan pencereler (sliding window) halinde dilimleyerek yapay zekaya sunarız.</p>
-                        </div>
-
-                        <div class="arch-card">
-                            <div class="arch-title">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                                <span>Eğitim & Değerlendirme</span>
-                            </div>
-                            <p class="arch-desc">Veri setinin <code>%80</code>'i ile modeli eğitirken, <code>%20</code>'lik test setiyle değerlendirme (MSE analizi) yaparız. ApexCharts grafik üzerinde mavi renk gerçek fiyatları, açık mavi renk ise yapay zekanın tahminlerini gösterir.</p>
+            <!-- RIGHT COLUMN: AI Financial RAG Report & Monospace Console -->
+            <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 24px; overflow-y: auto;">
+                <!-- AI FINANCIAL RAG REPORT CARD -->
+                <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 400px;">
+                    <div class="card-title" style="margin-bottom: 16px;">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
+                    
+                    <!-- RAG Loading Spinner -->
+                    <div class="rag-loading-container" id="rag-loading-container" style="display:none; margin-bottom:15px;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div class="spinner-glow"></div>
+                            <span id="rag-loading-text" style="font-size:0.85rem; font-weight:600; color:var(--neon-blue);">Yapay zeka analiz yapıyor...</span>
                         </div>
                     </div>
+
+                    <!-- Generated Markdown Rapor Content -->
+                    <div class="rag-report-output" id="rag-report-output" style="flex-grow: 1; display:none; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:20px; overflow-y:auto; border-radius:12px;">
+                        <div class="report-content" id="report-content-markdown"></div>
+                    </div>
+                    
+                    <div class="empty-chart-placeholder" id="report-placeholder" style="flex-grow:1; height: unset;">
+                        <div class="chart-placeholder-icon">🤖</div>
+                        <span>Hisse senedi verileri indirildikten ve eğitildikten sonra, yapay zeka analiz raporu burada oluşturulacaktır.</span>
+                    </div>
+                </div>
+
+                <!-- MONOSPACE LOG CONSOLE -->
+                <div class="card" style="padding: 16px; margin-top: auto;">
+                    <div class="card-title" style="margin-bottom: 8px; font-size:0.8rem;">Sistem Konsol Kayıtları</div>
+                    <div class="training-console" id="training-console" style="margin-top: 0; height: 110px;">Sistem hazır. Başlamak için bir hisse kodu girip "Analiz Et" butonuna basın.</div>
                 </div>
             </section>
         </main>
     </div>
+
+    <!-- Hidden element references to prevent app.js DOM selection crashes -->
+    <select id="stock-select" style="display:none;"></select>
+    <button id="btn-train-stock" style="display:none;"></button>
+    <select id="stock-date-select" style="display:none;"></select>
+    <textarea id="stock-prices-input" style="display:none;"></textarea>
+    <button id="btn-predict-stock" style="display:none;"></button>
 
     <script src="app.js"></script>
 </body>
