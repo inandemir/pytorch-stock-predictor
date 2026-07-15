@@ -16,6 +16,15 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
+def is_safe_filename(filename):
+    if not filename:
+        return False
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return False
+    if not filename.endswith(".csv"):
+        return False
+    return True
+
 # Initialize Stock Predictor
 stock_predictor = StockPredictorEngine(data_dir=DATA_DIR)
 
@@ -133,8 +142,8 @@ def get_stock_status():
 def train_stock_model():
     data = request.json or {}
     stock_filename = data.get("filename")
-    if not stock_filename:
-        return jsonify({"error": "filename is required"}), 400
+    if not is_safe_filename(stock_filename):
+        return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
         
     if stock_training_state["status"] == "training":
         return jsonify({"error": "A model is already training"}), 400
@@ -163,8 +172,8 @@ def predict_stock():
 @app.route("/api/stock/dates", methods=["GET"])
 def get_stock_dates():
     filename = request.args.get("filename")
-    if not filename:
-        return jsonify({"error": "filename parameter is required"}), 400
+    if not is_safe_filename(filename):
+        return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
     try:
         dates = stock_predictor.get_stock_dates(filename)
         return jsonify({"dates": dates})
@@ -176,8 +185,8 @@ def get_stock_dates():
 def get_stock_history():
     filename = request.args.get("filename")
     date = request.args.get("date")
-    if not filename or not date:
-        return jsonify({"error": "filename and date parameters are required"}), 400
+    if not is_safe_filename(filename) or not date:
+        return jsonify({"error": "Geçersiz veya güvensiz dosya adı ya da tarih parametresi eksik!"}), 400
     try:
         prices, actual = stock_predictor.get_stock_history_by_date(filename, date)
         return jsonify({"prices": prices, "actual": actual})
@@ -189,8 +198,9 @@ def get_stock_history():
 def download_stock_data():
     data = request.json or {}
     ticker = data.get("ticker", "").upper().strip()
-    if not ticker:
-        return jsonify({"error": "Ticker sembolü gereklidir"}), 400
+    # Validate ticker input: only alphanumeric, dots and hyphens
+    if not ticker or not all(c.isalnum() or c in "-." for c in ticker):
+        return jsonify({"error": "Geçersiz veya güvensiz borsa sembolü!"}), 400
         
     try:
         df = yf.download(ticker, start="2018-01-01", end="2026-07-15")
@@ -235,8 +245,8 @@ def load_llm():
 @app.route("/api/stock/report", methods=["GET"])
 def generate_stock_report():
     filename = request.args.get("filename")
-    if not filename:
-        return jsonify({"error": "filename parameter is required"}), 400
+    if not is_safe_filename(filename):
+        return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
         
     def sse_generator():
         global llm_state, openai_client
@@ -345,6 +355,10 @@ Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:
                     {"role": "system", "content": "Sen profesyonel bir finans analisti ve borsa danışmanısın. Türkçe konuşuyorsun. Sayısal verileri ve haber özetlerini çok iyi analiz edersin."},
                     {"role": "user", "content": prompt}
                 ],
+                temperature=0.3,
+                max_tokens=600,
+                frequency_penalty=1.2,
+                presence_penalty=1.0,
                 stream=True
             )
             for chunk in stream:
