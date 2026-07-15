@@ -1,10 +1,13 @@
 import os
 import threading
+import json
 import pandas as pd
 import yfinance as yf
-from flask import Flask, request, jsonify, send_from_directory
+import openai
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from stock_predictor import StockPredictorEngine
+from foundry_local_sdk import Configuration, FoundryLocalManager
 
 app = Flask(__name__, static_folder="static")
 CORS(app)
@@ -26,6 +29,58 @@ stock_training_state = {
     "active_stock": None,
     "error": None
 }
+
+# Global LLM (RAG) State
+llm_state = {
+    "status": "idle", # idle, loading, ready, error
+    "progress": 0,
+    "error": None
+}
+
+foundry_manager = None
+openai_client = None
+
+def init_foundry():
+    global foundry_manager
+    try:
+        config = Configuration(app_name="local-rag-assistant")
+        FoundryLocalManager.initialize(config)
+        foundry_manager = FoundryLocalManager.instance
+        print("Foundry Local Manager initialized.")
+    except Exception as e:
+        print(f"Error initializing Foundry Local: {e}")
+
+init_foundry()
+
+def bg_load_llm():
+    global llm_state, foundry_manager, openai_client
+    try:
+        llm_state["status"] = "loading"
+        llm_state["progress"] = 20
+        llm_state["error"] = None
+        
+        print("Loading local LLM model qwen2.5-0.5b...")
+        model_info = foundry_manager.catalog.get_model("qwen2.5-0.5b")
+        llm_state["progress"] = 50
+        
+        model_info.load()
+        llm_state["progress"] = 75
+        
+        if not foundry_manager.urls:
+            foundry_manager.start_web_service()
+            
+        openai_client = openai.OpenAI(
+            base_url=f"{foundry_manager.urls[0]}/v1",
+            api_key="local"
+        )
+        
+        llm_state["progress"] = 100
+        llm_state["status"] = "ready"
+        print("Local LLM model qwen2.5-0.5b is ready!")
+    except Exception as e:
+        llm_state["status"] = "error"
+        llm_state["error"] = str(e)
+        print(f"Error loading local LLM: {e}")
 
 def bg_train_stock(stock_filename):
     global stock_training_state, stock_predictor
@@ -138,21 +193,17 @@ def download_stock_data():
         return jsonify({"error": "Ticker sembolü gereklidir"}), 400
         
     try:
-        # Download from 2018-01-01 to 2026-07-15
         df = yf.download(ticker, start="2018-01-01", end="2026-07-15")
         if df.empty:
             return jsonify({"error": f"{ticker} sembolü için veri bulunamadı."}), 404
             
         df = df.reset_index()
-        # Clean MultiIndex columns if present
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.droplevel(1)
             
-        # Ensure we have all required columns
         df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
         df['Name'] = ticker
         
-        # Save as CSV in DATA_DIR
         filename = f"{ticker}_2018-01-01_to_2026-07-15.csv"
         filepath = os.path.join(DATA_DIR, filename)
         df.to_csv(filepath, index=False)
@@ -165,6 +216,146 @@ def download_stock_data():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 8. Get LLM Load Status
+@app.route("/api/llm/status", methods=["GET"])
+def get_llm_status():
+    return jsonify(llm_state)
+
+# 9. Trigger LLM Load
+@app.route("/api/llm/load", methods=["POST"])
+def load_llm():
+    if llm_state["status"] not in ["loading", "ready"]:
+        thread = threading.Thread(target=bg_load_llm)
+        thread.daemon = True
+        thread.start()
+    return jsonify(llm_state)
+
+# 10. Generate RAG Financial Report (SSE Streaming)
+@app.route("/api/stock/report", methods=["GET"])
+def generate_stock_report():
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"error": "filename parameter is required"}), 400
+        
+    def sse_generator():
+        global llm_state, openai_client
+        
+        # 1. Check if LLM is ready. If not, trigger load and wait.
+        if llm_state["status"] != "ready":
+            yield f"data: {json.dumps({'type': 'status', 'text': 'Yapay zeka modeli belleğe yükleniyor (qwen2.5-0.5b)...'})}\n\n"
+            if llm_state["status"] not in ["loading"]:
+                bg_load_llm()
+                
+            import time
+            while llm_state["status"] == "loading":
+                prog = llm_state["progress"]
+                yield f"data: {json.dumps({'type': 'status', 'text': f'Model yükleniyor... %{prog}'})}\n\n"
+                time.sleep(0.5)
+                
+            if llm_state["status"] == "error":
+                err_msg = llm_state["error"]
+                yield f"data: {json.dumps({'type': 'error', 'text': f'Model yüklenemedi: {err_msg}'})}\n\n"
+                return
+                
+        # 2. Get stock price data & LSTM prediction
+        ticker_symbol = filename.split("_")[0]
+        yield f"data: {json.dumps({'type': 'status', 'text': f'LSTM model tahmini hesaplanıyor ve {ticker_symbol} son verileri alınıyor...'})}\n\n"
+        
+        try:
+            # Load last 20 close prices from file
+            filepath = os.path.join(DATA_DIR, filename)
+            df = pd.read_csv(filepath)
+            df = df.sort_values('Date')
+            last_20_prices = df['Close'].values[-20:].tolist()
+            last_close = last_20_prices[-1]
+            
+            # Predict
+            pred_price = stock_predictor.predict_next(last_20_prices)
+            price_change = pred_price - last_close
+            pct_change = (price_change / last_close) * 100
+            trend_direction = "YUKARI (Artış)" if price_change >= 0 else "AŞAĞI (Azalış)"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'text': f'LSTM tahmin hatası: {str(e)}'})}\n\n"
+            return
+            
+        # 3. Retrieve Latest news from yfinance (RAG Retrieval)
+        yield f"data: {json.dumps({'type': 'status', 'text': f'Yahoo Finance üzerinden {ticker_symbol} hakkında en güncel haberler toplanıyor (RAG)...'})}\n\n"
+        
+        retrieved_news = []
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            news_items = ticker.news[:5]
+            for item in news_items:
+                content = item.get('content', {})
+                title = content.get('title') or item.get('title')
+                summary = content.get('summary') or content.get('description') or item.get('summary') or item.get('description') or ""
+                pub_date = content.get('pubDate') or item.get('pubDate') or ""
+                provider = content.get('provider', {}).get('displayName', item.get('provider', {}).get('displayName', 'Bilinmeyen'))
+                if title:
+                    retrieved_news.append({
+                        "title": title,
+                        "summary": summary[:250] + "..." if len(summary) > 250 else summary,
+                        "pub_date": pub_date,
+                        "provider": provider
+                    })
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'status', 'text': f'Haberler çekilirken hata oluştu fakat analize devam ediliyor: {str(e)}'})}\n\n"
+            
+        # 4. Synthesize prompt (Augmentation)
+        yield f"data: {json.dumps({'type': 'status', 'text': 'Veriler sentezleniyor ve Yapay Zeka Analizi yazılıyor...'})}\n\n"
+        
+        news_context = ""
+        if retrieved_news:
+            for idx, n in enumerate(retrieved_news):
+                news_context += f"{idx+1}. Başlık: {n['title']}\n   Kaynak: {n['provider']} ({n['pub_date']})\n   Özet: {n['summary']}\n\n"
+        else:
+            news_context = "Son haberlere ulaşılamadı.\n"
+            
+        prompt = f"""Sen yerel ve çevrimdışı çalışan, uzman bir Yapay Zeka Finansal Analistisin. 
+Aşağıdaki LSTM fiyat tahmini verilerini ve hisseye dair en son haber başlıklarını/özetlerini harmanlayarak yatırımcılara yönelik Türkçe detaylı bir borsa analiz raporu yaz.
+
+Hisse Senedi Ticker: {ticker_symbol}
+Yapay Zeka (LSTM) Tahmin Verileri:
+- Son Kapanış Fiyatı: ${last_close:.2f}
+- Yarın İçin LSTM Tahmini: ${pred_price:.2f}
+- Tahmin Edilen Değişim: {price_change:+.2f} ({pct_change:+.2f}%)
+- Öngörülen Trend: {trend_direction}
+
+Yahoo Finance'ten Alınan Son Haberler (RAG Bağlamı):
+{news_context}
+
+Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:
+
+### 📈 LSTM Fiyat Analizi
+(Tahmini fiyatı, son kapanış fiyatını ve yönünü detaylandırarak açıklayın. LSTM modelimizin öngörüsünü yorumlayın.)
+
+### 📰 Haber Başlıkları & Gelişmeler
+(RAG ile çekilen haber başlıklarını inceleyerek, olumlu ve olumsuz haberleri listele ve bu haberlerin hisseye olası etkilerini finansal açıdan yorumla.)
+
+### 💡 AI Yatırım Tavsiyesi & Değerlendirme
+(LSTM sayısal tahmini ile haberlerin analizini harmanlayarak, yerel LLM olarak bu hisse senedi hakkında kısa vadeli bir Türkçe yatırım değerlendirmesi yaz. Yatırımcılara somut öneriler sun.)
+"""
+        
+        # 5. Call LLM (Generation)
+        try:
+            stream = openai_client.chat.completions.create(
+                model="qwen2.5-0.5b",
+                messages=[
+                    {"role": "system", "content": "Sen profesyonel bir finans analisti ve borsa danışmanısın. Türkçe konuşuyorsun. Sayısal verileri ve haber özetlerini çok iyi analiz edersin."},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    txt = chunk.choices[0].delta.content
+                    yield f"data: {json.dumps({'type': 'content', 'text': txt})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'text': f'LLM Çıkarım Hatası: {str(e)}'})}\n\n"
+            
+    return Response(sse_generator(), mimetype="text/event-stream")
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)

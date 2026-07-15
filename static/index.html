@@ -171,6 +171,27 @@
                             <div class="prediction-diff-bar" id="prediction-diff">Sapma Oranı: %0.00</div>
                         </div>
                     </div>
+
+                    <!-- AI RAG Report Card -->
+                    <div class="rag-report-box card" id="rag-report-box" style="display:none; margin-top:20px;">
+                        <div class="card-title">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
+                        <p class="specs-desc" style="margin-bottom: 15px; font-size:0.78rem;">Seçili hisseye dair en son haber başlıklarını çeker, LSTM fiyat tahmini ile birleştirir ve cihazınızdaki yerel dil modeli (LLM) ile detaylı yatırım raporu yazar.</p>
+                        
+                        <!-- RAG Progress container -->
+                        <div class="rag-loading-container" id="rag-loading-container" style="display:none; margin-bottom:15px;">
+                            <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                                <div class="spinner-glow"></div>
+                                <span id="rag-loading-text" style="font-size:0.85rem; font-weight:600; color:var(--neon-blue);">Yapay zeka analiz yapıyor...</span>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary w-100" id="btn-generate-report" style="background:var(--accent-gradient); box-shadow: 0 4px 20px rgba(138, 43, 226, 0.25);">AI Yatırım Raporu Oluştur (RAG)</button>
+
+                        <!-- Generated report markdown container -->
+                        <div class="rag-report-output" id="rag-report-output" style="display:none; margin-top:20px;">
+                            <div class="report-content" id="report-content-markdown"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 

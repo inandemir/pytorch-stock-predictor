@@ -687,6 +687,73 @@ body {
     100% { transform: translateY(0px); }
 }
 
+/* RAG REPORT SPINNER & LAYOUT */
+.spinner-glow {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(0, 188, 242, 0.15);
+    border-top-color: var(--neon-blue);
+    border-radius: 50%;
+    animation: spin 0.8s infinite linear;
+    box-shadow: 0 0 10px rgba(0, 188, 242, 0.3);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.rag-report-output {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 24px;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.5);
+    border-left: 4px solid #8a2be2;
+    transition: var(--transition-normal);
+}
+
+.report-content {
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: var(--text-main);
+}
+
+.report-section-title {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--neon-blue);
+    margin-top: 22px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.report-section-title:first-of-type {
+    margin-top: 0;
+}
+
+.report-content strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.report-content li {
+    margin-left: 18px;
+    margin-bottom: 8px;
+    color: var(--text-muted);
+}
+
+.report-content li::marker {
+    color: var(--neon-blue);
+}
+
 /* RESPONSIVENESS */
 @media (max-width: 1200px) {
     .app-main {

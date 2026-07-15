@@ -36,6 +36,13 @@ const stockModelInfo = document.getElementById("stock-model-info");
 const tickerInput = document.getElementById("ticker-input");
 const btnDownloadTicker = document.getElementById("btn-download-ticker");
 
+const ragReportBox = document.getElementById("rag-report-box");
+const ragLoadingContainer = document.getElementById("rag-loading-container");
+const ragLoadingText = document.getElementById("rag-loading-text");
+const btnGenerateReport = document.getElementById("btn-generate-report");
+const ragReportOutput = document.getElementById("rag-report-output");
+const reportContentMarkdown = document.getElementById("report-content-markdown");
+
 // Global State
 let stockInterval = null;
 let stocksList = [];
@@ -83,6 +90,9 @@ function setupEventListeners() {
             handleDownloadTicker();
         }
     });
+
+    // RAG Actions
+    btnGenerateReport.addEventListener("click", handleGenerateReport);
 }
 
 // 3. Log to Training Console
@@ -275,6 +285,7 @@ function updateStockUI(state) {
         
         kpiContainer.style.display = "none";
         predictionBox.style.display = "none";
+        ragReportBox.style.display = "none";
         stockModelInfo.textContent = "LSTM Sinir Ağı Eğitiliyor...";
         
         if (apexChartInstance) {
@@ -318,6 +329,7 @@ function updateStockUI(state) {
         }
         
         predictionBox.style.display = "block";
+        ragReportBox.style.display = "block";
         chartPlaceholder.style.display = "none";
         
         // Render ApexChart
@@ -345,6 +357,8 @@ function updateStockUI(state) {
             apexChartInstance = null;
         }
         
+        predictionBox.style.display = "none";
+        ragReportBox.style.display = "none";
         stockModelInfo.textContent = "Eğitim hatası";
     }
     else {
@@ -362,6 +376,9 @@ function updateStockUI(state) {
             apexChartInstance.destroy();
             apexChartInstance = null;
         }
+        
+        predictionBox.style.display = "none";
+        ragReportBox.style.display = "none";
         stockModelInfo.textContent = "Model eğitilmedi";
     }
 }
@@ -554,6 +571,84 @@ async function handleDownloadTicker() {
         btnDownloadTicker.disabled = false;
         tickerInput.disabled = false;
     }
+}
+
+// 12. Generate RAG Financial Report using Local LLM
+async function handleGenerateReport() {
+    const filename = stockSelect.value;
+    if (!filename) return;
+
+    btnGenerateReport.disabled = true;
+    ragLoadingContainer.style.display = "block";
+    ragReportOutput.style.display = "none";
+    reportContentMarkdown.innerHTML = "";
+    ragLoadingText.textContent = "Bağlanıyor...";
+
+    logConsole(`[RAG] Finansal AI Raporlama süreci tetiklendi...`, true);
+
+    const eventSource = new EventSource(`/api/stock/report?filename=${filename}`);
+
+    let rawMarkdownText = "";
+
+    eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "status") {
+            ragLoadingText.textContent = data.text;
+            logConsole(`[RAG] ${data.text}`);
+        } 
+        else if (data.type === "content") {
+            ragReportOutput.style.display = "block";
+            rawMarkdownText += data.text;
+            reportContentMarkdown.innerHTML = parseMarkdown(rawMarkdownText);
+            
+            // Scroll down as new text arrives
+            reportContentMarkdown.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } 
+        else if (data.type === "error") {
+            eventSource.close();
+            btnGenerateReport.disabled = false;
+            ragLoadingContainer.style.display = "none";
+            alert(`RAG Analiz Hatası: ${data.text}`);
+            logConsole(`[HATA] RAG Rapor hatası: ${data.text}`);
+        } 
+        else if (data.type === "done") {
+            eventSource.close();
+            btnGenerateReport.disabled = false;
+            ragLoadingContainer.style.display = "none";
+            logConsole(`[RAG] Raporlama tamamlandı!`);
+        }
+    };
+
+    eventSource.onerror = function (err) {
+        console.error("SSE Connection Error:", err);
+        eventSource.close();
+        btnGenerateReport.disabled = false;
+        ragLoadingContainer.style.display = "none";
+        logConsole(`[HATA] Sunucuyla bağlantı koptu.`);
+    };
+}
+
+// 13. Minimal markdown parser for financial reports
+function parseMarkdown(text) {
+    let html = text;
+    
+    // Replace block headers: ### Header
+    html = html.replace(/###\s+(.*)/g, '<h4 class="report-section-title">$1</h4>');
+    
+    // Replace strong: **text**
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Replace list items: - text or * text
+    html = html.replace(/^\s*[-*]\s+(.*)/gm, '<li>$1</li>');
+    
+    // Replace paragraph break
+    html = html.replace(/\n\n/g, '<br><br>');
+    
+    // Replace simple newlines
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
 }
 
 // Start application
