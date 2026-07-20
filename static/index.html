@@ -24,7 +24,7 @@
                 </svg>
                 <div class="logo-text">
                     <h1>Local RAG Finansal Yapay Zeka Ajanı</h1>
-                    <span class="logo-sub">PyTorch & Yerel Dil Modeli (Qwen 2.5) Sentezi</span>
+                    <span class="logo-sub">Geliştirici: İnan Demir | PyTorch & Qwen 2.5 Yerel Sentezi</span>
                 </div>
             </div>
             <div class="header-status">
@@ -34,21 +34,32 @@
         </header>
 
         <!-- MAIN LAYOUT (2 Columns) -->
-        <main class="app-main" style="grid-template-columns: 1fr 1fr; height: calc(100vh - 120px);">
+        <main class="app-main" style="grid-template-columns: 1fr 1fr; height: calc(100vh - 150px); margin-bottom: 10px;">
             <!-- LEFT COLUMN: Input, Progress, and Price Chart -->
-            <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 24px;">
+            <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 20px;">
                 <!-- SEARCH & CONTROL CARD -->
                 <div class="card" style="padding: 20px;">
                     <div class="card-title">Hisse Senedi Analizi Başlat</div>
                     <p class="specs-desc" style="margin-bottom: 15px; font-size:0.8rem;">Dilediğiniz hissenin kodunu yazın. Sistem verileri güncelleyecek, PyTorch LSTM modelini otomatik eğitecek ve RAG raporunu oluşturacaktır.</p>
                     
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                         <input type="text" id="ticker-input" class="form-input" placeholder="Örn: AAPL, NVDA, TSLA, BTC-USD" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:12px; padding:12px 16px; color:white; font-weight:600; outline:none; text-transform:uppercase; font-size:0.95rem;">
                         <button id="btn-analyze" class="btn btn-primary" style="padding:12px 28px; border-radius:12px; font-size:0.95rem; font-weight:700;">Analiz Et (RAG)</button>
                     </div>
 
+                    <!-- Row for Note Add Button and Specs -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                        <button id="btn-open-note-modal" class="btn" style="background: rgba(138,43,226,0.15); border: 1px solid rgba(138,43,226,0.35); padding: 8px 16px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" disabled>
+                            📝 Bilgi Deposu (Not Ekle)
+                        </button>
+                        <div style="font-size: 0.7rem; color: var(--text-muted); text-align: right; display: flex; flex-direction: column; gap: 2px;">
+                            <span>LSTM: 5 Teknik Gösterge (MA5, MA20, RSI, Vol)</span>
+                            <span>NLP: TF-IDF & Cosine Similarity | LLM: Qwen (Yerel)</span>
+                        </div>
+                    </div>
+
                     <!-- Status Display -->
-                    <div class="state-indicator" style="margin-top: 10px;">
+                    <div class="state-indicator" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
                         <div class="state-label">İşlem Durumu:</div>
                         <div class="state-val" id="process-state-val" style="color: var(--text-muted);">Boşta</div>
                     </div>
@@ -66,19 +77,8 @@
                     </div>
                 </div>
 
-                <!-- KNOWLEDGE BASE NOTE CARD -->
-                <div class="card" style="padding: 20px;">
-                    <div class="card-title">Hisse Senedi Bilgi Deposu (RAG)</div>
-                    <p class="specs-desc" style="margin-bottom: 10px; font-size:0.8rem;">Bu hisseye özel analiz notu, PDF özeti veya haber metni ekleyin. Chatbot bu dökümanları semantik olarak tarayacaktır.</p>
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <input type="text" id="note-title-input" class="form-input" placeholder="Not Başlığı (örn: Son Çeyrek AI Çip Raporu)" style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:10px; color:white; font-size:0.85rem; outline:none;" disabled>
-                        <textarea id="note-content-input" class="form-input" placeholder="Not içeriğini veya haber metnini buraya yapıştırın..." style="height: 80px; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:10px; color:white; font-size:0.85rem; outline:none; resize:none; font-family:var(--font-main);" disabled></textarea>
-                        <button id="btn-save-note" class="btn btn-primary" style="padding:10px; border-radius:10px; font-size:0.85rem; font-weight:600; background:rgba(138,43,226,0.3); border:1px solid rgba(138,43,226,0.5);" disabled>Bilgi Notu Kaydet</button>
-                    </div>
-                </div>
-
                 <!-- CHART CARD -->
-                <div class="card flex-grow" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 320px;">
+                <div class="card flex-grow" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 280px;">
                     <div class="card-title">Hisse Fiyat Trendi (Gerçek vs LSTM Tahmini)</div>
                     <div class="stock-chart-container" id="stock-chart-container" style="flex-grow: 1; border: none; background: transparent; padding: 0; min-height: unset; justify-content: center;">
                         <div class="empty-chart-placeholder" id="chart-placeholder">
@@ -91,9 +91,9 @@
             </section>
 
             <!-- RIGHT COLUMN: AI Financial RAG Report & Monospace Console -->
-            <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 24px; overflow-y: auto;">
+            <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 20px; overflow-y: auto;">
                 <!-- AI FINANCIAL RAG REPORT CARD -->
-                <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 400px;">
+                <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 380px;">
                     <div class="card-title" style="margin-bottom: 16px;">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
                     
                     <!-- RAG Loading Spinner -->
@@ -116,11 +116,11 @@
                 </div>
 
                 <!-- AI INTERACTIVE CHAT CARD -->
-                <div class="card" style="display: flex; flex-direction: column; padding: 20px; min-height: 300px;">
-                    <div class="card-title" style="margin-bottom: 12px;">🤖 Yapay Zeka Finansal Soru-Cevap (Chat RAG)</div>
+                <div class="card" style="display: flex; flex-direction: column; padding: 20px; min-height: 280px; max-height: 320px;">
+                    <div class="card-title" style="margin-bottom: 12px;">💬 Yapay Zeka Finansal Soru-Cevap (Chat RAG)</div>
                     
                     <!-- Chat Messages List -->
-                    <div class="chat-container" id="chat-messages" style="flex-grow:1; min-height:180px; max-height:220px; overflow-y:auto; padding:12px; background:rgba(0,0,0,0.35); border:1px solid var(--glass-border); border-radius:12px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px;">
+                    <div class="chat-container" id="chat-messages" style="flex-grow:1; min-height:140px; max-height:180px; overflow-y:auto; padding:12px; background:rgba(0,0,0,0.35); border:1px solid var(--glass-border); border-radius:12px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px;">
                         <div class="chat-bubble ai" style="align-self:flex-start; background:rgba(138,43,226,0.15); border:1px solid rgba(138,43,226,0.3); border-radius:12px 12px 12px 2px; padding:8px 12px; color:var(--text-main); font-size:0.85rem; max-width:85%; line-height:1.5;">
                             Sistem hazır. Seçili hisse senedi hakkında dilediğiniz soruyu sorabilirsiniz.
                         </div>
@@ -128,7 +128,7 @@
                     
                     <!-- Chat Input Field -->
                     <div style="display: flex; gap: 8px;">
-                        <input type="text" id="chat-input" class="form-input" placeholder="Örn: Apple yapay zeka çipi hakkında ne biliyoruz?" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:10px; color:white; font-size:0.85rem; outline:none;" disabled>
+                        <input type="text" id="chat-input" class="form-input" placeholder="Örn: Bu hissenin en büyük risk faktörleri nelerdir?" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:10px; color:white; font-size:0.85rem; outline:none;" disabled>
                         <button id="btn-chat-send" class="btn btn-primary" style="padding:10px 20px; border-radius:10px; font-size:0.85rem; font-weight:600;" disabled>Sor</button>
                     </div>
                 </div>
@@ -136,10 +136,29 @@
                 <!-- MONOSPACE LOG CONSOLE -->
                 <div class="card" style="padding: 16px; margin-top: auto;">
                     <div class="card-title" style="margin-bottom: 8px; font-size:0.8rem;">Sistem Konsol Kayıtları</div>
-                    <div class="training-console" id="training-console" style="margin-top: 0; height: 110px;">Sistem hazır. Başlamak için bir hisse kodu girip "Analiz Et" butonuna basın.</div>
+                    <div class="training-console" id="training-console" style="margin-top: 0; height: 90px;">Sistem hazır. Başlamak için bir hisse kodu girip "Analiz Et" butonuna basın.</div>
                 </div>
             </section>
         </main>
+
+        <!-- FOOTER -->
+        <footer style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding: 12px 0; border-top: 1px solid rgba(255, 255, 255, 0.05); background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); margin-top: auto; border-radius: 12px 12px 0 0;">
+            © 2026 Local RAG Finansal Yapay Zeka Ajanı | Tasarım ve Geliştirme: <strong style="color:var(--neon-blue); font-weight: 600;">İnan Demir</strong>
+        </footer>
+    </div>
+
+    <!-- NOTE UPLOAD POPUP MODAL -->
+    <div id="note-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-modal" id="btn-close-modal">&times;</span>
+            <div class="modal-title">Bilgi Deposuna Not Ekle</div>
+            <p class="modal-desc">Seçili hisse senedine dair analiz notu, PDF metni veya önemli haberleri ekleyin. Chatbot bu dökümanları semantik olarak tarayacaktır.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <input type="text" id="note-title-input" class="form-input" placeholder="Not Başlığı (örn: Son Çeyrek AI Çip Raporu)" style="background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:white; font-size:0.9rem; outline:none;" disabled>
+                <textarea id="note-content-input" class="form-input" placeholder="Not içeriğini veya haber metnini buraya yapıştırın..." style="height: 160px; background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:white; font-size:0.9rem; outline:none; resize:none; font-family:var(--font-main);" disabled></textarea>
+                <button id="btn-save-note" class="btn btn-primary" style="padding:12px; border-radius:10px; font-size:0.95rem; font-weight:600;" disabled>Bilgi Notu Kaydet</button>
+            </div>
+        </div>
     </div>
 
     <!-- Hidden element references to prevent app.js DOM selection crashes -->

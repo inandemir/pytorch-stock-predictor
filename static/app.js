@@ -31,6 +31,9 @@ const btnSaveNote = document.getElementById("btn-save-note");
 const chatMessages = document.getElementById("chat-messages");
 const chatInput = document.getElementById("chat-input");
 const btnChatSend = document.getElementById("btn-chat-send");
+const noteModal = document.getElementById("note-modal");
+const btnOpenNoteModal = document.getElementById("btn-open-note-modal");
+const btnCloseModal = document.getElementById("btn-close-modal");
 
 // Global State
 let activeTicker = "";
@@ -75,6 +78,13 @@ function setupEventListeners() {
     chatInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
             handleChatSend();
+        }
+    });
+    btnOpenNoteModal.addEventListener("click", openNoteModal);
+    btnCloseModal.addEventListener("click", closeNoteModal);
+    window.addEventListener("click", (e) => {
+        if (e.target === noteModal) {
+            closeNoteModal();
         }
     });
 }
@@ -213,6 +223,7 @@ function pollTrainingStatus() {
                     noteTitleInput.disabled = false;
                     noteContentInput.disabled = false;
                     btnSaveNote.disabled = false;
+                    btnOpenNoteModal.disabled = false;
                     chatInput.disabled = false;
                     btnChatSend.disabled = false;
 
@@ -454,6 +465,7 @@ async function handleSaveNote() {
         // Clear fields
         noteTitleInput.value = "";
         noteContentInput.value = "";
+        closeNoteModal();
     } catch(err) {
         console.error("Error uploading note:", err);
         alert(`Not Kaydedilemedi: ${err.message}`);
@@ -539,6 +551,16 @@ async function handleChatSend() {
         chatInput.disabled = false;
         btnChatSend.disabled = false;
     };
+}
+
+// 13. Modal Open/Close handlers
+function openNoteModal() {
+    noteModal.style.display = "flex";
+    noteTitleInput.focus();
+}
+
+function closeNoteModal() {
+    noteModal.style.display = "none";
 }
 
 // Start application
