@@ -59,6 +59,7 @@ const settingRisk = document.getElementById("setting-risk");
 const settingHorizon = document.getElementById("setting-horizon");
 const settingCurrency = document.getElementById("setting-currency");
 const settingNews = document.getElementById("setting-news");
+const settingTheme = document.getElementById("setting-theme");
 const settingEpochs = document.getElementById("setting-epochs");
 const settingLr = document.getElementById("setting-lr");
 const settingTemp = document.getElementById("setting-temp");
@@ -73,6 +74,10 @@ const indRsi = document.getElementById("ind-rsi");
 const indMa5 = document.getElementById("ind-ma5");
 const indVolume = document.getElementById("ind-volume");
 
+// Floating Scroll Button & Market Overview references
+const btnScrollReport = document.getElementById("btn-scroll-report");
+const marketStatsTbody = document.getElementById("market-stats-tbody");
+
 // Global State
 let activeTicker = "";
 let activeFilename = "";
@@ -85,6 +90,7 @@ async function init() {
     setupEventListeners();
     checkServerConnection();
     loadSettings();
+    loadMarketSummaryStats();
 }
 
 // 1. Check server connection
@@ -140,6 +146,14 @@ function setupEventListeners() {
 
     // Read modal close
     btnCloseReadModal.addEventListener("click", closeReadModal);
+
+    // Scroll down click
+    btnScrollReport.addEventListener("click", () => {
+        ragReportOutput.scrollTo({
+            top: ragReportOutput.scrollHeight,
+            behavior: 'smooth'
+        });
+    });
 }
 
 // 3. Log to Monospace Console
@@ -170,6 +184,7 @@ async function startAnalysis() {
     processStateVal.style.color = "var(--neon-blue)";
     stockProgressContainer.style.display = "none";
     indicatorsCard.style.display = "none";
+    btnScrollReport.style.display = "none";
     chartPlaceholder.style.display = "flex";
     if (apexChartInstance) {
         apexChartInstance.destroy();
@@ -356,6 +371,11 @@ function generateRAGReport() {
             ragReportOutput.style.display = "block";
             rawMarkdownText += data.text;
             reportContentMarkdown.innerHTML = parseMarkdown(rawMarkdownText);
+            
+            // Show scroll button if content height exceeds container height
+            if (ragReportOutput.scrollHeight > ragReportOutput.clientHeight + 40) {
+                btnScrollReport.style.display = "flex";
+            }
             
             // Scroll down as text streams
             reportContentMarkdown.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -788,11 +808,15 @@ function loadSettings() {
     const horizon = localStorage.getItem("setting_horizon") || "medium";
     const currency = localStorage.getItem("setting_currency") || "USD";
     const news = localStorage.getItem("setting_news") || "yahoo";
+    const theme = localStorage.getItem("setting_theme") || "blue";
 
     settingRisk.value = risk;
     settingHorizon.value = horizon;
     settingCurrency.value = currency;
     settingNews.value = news;
+    settingTheme.value = theme;
+
+    applyVisualTheme(theme);
 
     // Set hidden inputs for compatibility
     settingEpochs.value = "25";
@@ -807,6 +831,9 @@ function saveSettings() {
     localStorage.setItem("setting_horizon", settingHorizon.value);
     localStorage.setItem("setting_currency", settingCurrency.value);
     localStorage.setItem("setting_news", settingNews.value);
+    localStorage.setItem("setting_theme", settingTheme.value);
+
+    applyVisualTheme(settingTheme.value);
 
     // Save defaults for compatibility
     localStorage.setItem("setting_epochs", "25");
@@ -815,8 +842,59 @@ function saveSettings() {
     localStorage.setItem("setting_tokens", "600");
     localStorage.setItem("setting_penalty", "1.2");
 
-    alert("Tercihler ve Yatırımcı Profili başarıyla kaydedildi.");
-    logConsole("[SİSTEM] Genel borsa ayarları ve kullanıcı yatırımcı profili güncellendi.");
+    alert("Tercihler ve Görsel Tema başarıyla kaydedildi.");
+    logConsole("[SİSTEM] Genel borsa ayarları ve görsel tema güncellendi.");
+}
+
+// 19. Apply selected visual theme dynamically to body CSS variables
+function applyVisualTheme(theme) {
+    document.body.classList.remove("theme-purple", "theme-green", "theme-red");
+    if (theme !== "blue") {
+        document.body.classList.add(`theme-${theme}`);
+    }
+}
+
+// 20. Load summary metrics table for other stocks
+async function loadMarketSummaryStats() {
+    try {
+        const response = await fetch("/api/stock/summary_stats");
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        
+        if (!data.stats || data.stats.length === 0) {
+            marketStatsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:var(--text-muted);">Yüklenmiş hisse bulunmamaktadır.</td></tr>`;
+            return;
+        }
+        
+        marketStatsTbody.innerHTML = "";
+        data.stats.forEach(item => {
+            const row = document.createElement("tr");
+            row.style.cursor = "pointer";
+            row.addEventListener("click", () => {
+                tickerInput.value = item.ticker;
+                startAnalysis();
+            });
+            
+            const currency = localStorage.getItem("setting_currency") || "USD";
+            const currencySymbol = currency === "TRY" ? "₺" : (currency === "EUR" ? "€" : "$");
+            
+            let volText = item.avg_volume.toLocaleString();
+            if (item.avg_volume > 1e6) volText = `${(item.avg_volume/1e6).toFixed(1)}M`;
+            else if (item.avg_volume > 1e3) volText = `${(item.avg_volume/1e3).toFixed(1)}K`;
+            
+            row.innerHTML = `
+                <td style="padding: 8px 6px; font-weight:700; color:var(--neon-blue);">${item.ticker}</td>
+                <td style="padding: 8px 6px; font-weight:600; color:white;">${currencySymbol}${item.last_close.toFixed(2)}</td>
+                <td style="padding: 8px 6px; color:var(--text-muted);">${currencySymbol}${item.min_price.toFixed(2)}</td>
+                <td style="padding: 8px 6px; color:var(--text-muted);">${currencySymbol}${item.max_price.toFixed(2)}</td>
+                <td style="padding: 8px 6px; color:var(--text-muted);">${volText}</td>
+            `;
+            marketStatsTbody.appendChild(row);
+        });
+    } catch(e) {
+        console.error("Error loading summary stats:", e);
+        marketStatsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:var(--neon-red);">Yükleme hatası!</td></tr>`;
+    }
 }
 
 // Start application

@@ -668,5 +668,33 @@ def delete_stock_note():
     else:
         return jsonify({"error": "Dosya bulunamadı!"}), 404
 
+# 15. Get summary statistics for all available stock datasets
+@app.route("/api/stock/summary_stats", methods=["GET"])
+def get_all_stocks_summary():
+    try:
+        stocks = stock_predictor.list_stocks()
+        stats_list = []
+        for stock in stocks:
+            filename = stock["filename"]
+            ticker = stock["name"]
+            filepath = os.path.join(stock_predictor.data_dir, filename)
+            if os.path.exists(filepath):
+                df = pd.read_csv(filepath)
+                if not df.empty and "Close" in df.columns:
+                    last_close = float(df["Close"].iloc[-1])
+                    min_price = float(df["Close"].min())
+                    max_price = float(df["Close"].max())
+                    avg_vol = float(df["Volume"].mean()) if "Volume" in df.columns else 0.0
+                    stats_list.append({
+                        "ticker": ticker,
+                        "last_close": last_close,
+                        "min_price": min_price,
+                        "max_price": max_price,
+                        "avg_volume": avg_vol
+                    })
+        return jsonify({"stats": stats_list})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)

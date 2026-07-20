@@ -89,9 +89,10 @@
             <!-- TOP STATUS HEADER -->
             <header class="app-header">
                 <div class="header-title" id="page-title">Kontrol Paneli</div>
-                <div class="header-status">
+                <!-- Clean Pulsing Status dot only (No "Çevrimdışı Aktif" text) -->
+                <div class="header-status" style="padding: 8px 12px; display: flex; align-items: center; justify-content: center;">
                     <span class="status-dot offline" id="status-dot"></span>
-                    <span class="status-text" id="status-text">Sunucu Bağlantısı Yok</span>
+                    <span class="status-text" id="status-text" style="display:none;"></span>
                 </div>
             </header>
 
@@ -101,8 +102,8 @@
                 <!-- VIEW 1: DASHBOARD VIEW -->
                 <div class="app-view active" id="view-dashboard">
                     <div class="app-main" style="grid-template-columns: 1fr 1fr; height: 100%; gap: 20px;">
-                        <!-- LEFT COLUMN: Search, Indicators & Chart -->
-                        <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 0;">
+                        <!-- LEFT COLUMN: Search, Indicators, Chart, Stats -->
+                        <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 0; overflow-y: auto;">
                             <!-- SEARCH & CONTROL CARD -->
                             <div class="card" style="padding: 20px;">
                                 <div class="card-title">Hisse Senedi Analizi Başlat</div>
@@ -167,7 +168,7 @@
                             </div>
 
                             <!-- CHART CARD -->
-                            <div class="card flex-grow" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 220px; overflow: hidden;">
+                            <div class="card" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 240px; overflow: hidden;">
                                 <div class="card-title">Hisse Fiyat Trendi (Gerçek vs LSTM Tahmini)</div>
                                 <div class="stock-chart-container" id="stock-chart-container" style="flex-grow: 1; border: none; background: transparent; padding: 0; min-height: unset; display: flex; align-items: center; justify-content: center;">
                                     <div class="empty-chart-placeholder" id="chart-placeholder">
@@ -177,12 +178,36 @@
                                     <div id="stock-apex-chart" style="width: 100%;"></div>
                                 </div>
                             </div>
+
+                            <!-- MARKET COMPARISON WIDGET -->
+                            <div class="card" style="padding: 20px; min-height: 180px; overflow: hidden; display: flex; flex-direction: column;">
+                                <div class="card-title" style="margin-bottom: 10px; font-size: 0.9rem;">📊 Portföydeki Diğer Hisselerin Durumu</div>
+                                <p class="specs-desc" style="margin-bottom: 12px; font-size:0.75rem;">Sistemde yüklü olan tüm hisse senetlerinin son kapanış fiyatları ve tarihsel aralıkları.</p>
+                                <div style="flex-grow: 1; overflow-y: auto; max-height: 120px;">
+                                    <table class="market-stats-table" style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left;">
+                                        <thead>
+                                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-weight: 600;">
+                                                <th style="padding: 8px 4px;">Hisse</th>
+                                                <th style="padding: 8px 4px;">Son Fiyat</th>
+                                                <th style="padding: 8px 4px;">En Düşük</th>
+                                                <th style="padding: 8px 4px;">En Yüksek</th>
+                                                <th style="padding: 8px 4px;">Ort. Hacim</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="market-stats-tbody">
+                                            <tr>
+                                                <td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Veriler yükleniyor...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </section>
 
                         <!-- RIGHT COLUMN: AI Report, Q&A Chat, and Log Console -->
                         <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 0; overflow-y: auto;">
                             <!-- AI FINANCIAL RAG REPORT CARD -->
-                            <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 300px;">
+                            <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 300px; position: relative;">
                                 <div class="card-title" style="margin-bottom: 16px;">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
                                 
                                 <!-- RAG Loading Spinner -->
@@ -194,8 +219,13 @@
                                 </div>
 
                                 <!-- Generated Markdown Rapor Content -->
-                                <div class="rag-report-output" id="rag-report-output" style="flex-grow: 1; display:none; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:20px; overflow-y:auto; border-radius:12px;">
+                                <div class="rag-report-output" id="rag-report-output" style="flex-grow: 1; display:none; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:20px; overflow-y:auto; border-radius:12px; position: relative;">
                                     <div class="report-content" id="report-content-markdown"></div>
+                                    
+                                    <!-- Floating Scroll Down Button -->
+                                    <button id="btn-scroll-report" class="scroll-down-btn" style="display: none;" title="Aşağı Kaydır">
+                                        ↓
+                                    </button>
                                 </div>
                                 
                                 <div class="empty-chart-placeholder" id="report-placeholder" style="flex-grow:1; height: unset;">
@@ -255,9 +285,25 @@
                         <div class="card" style="padding: 24px; max-width: 650px; margin: 0 auto; width: 100%;">
                             <div class="card-title" style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">⚙️ Genel Kullanıcı ve Yatırımcı Tercihleri</div>
                             
-                            <!-- Investor Profile -->
+                            <!-- Theme & Environment Selector -->
                             <div style="margin-bottom: 25px;">
-                                <h3 style="color: var(--neon-blue); font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);">Kişiselleştirilmiş Yatırımcı Profili</h3>
+                                <h3 style="color: var(--neon-blue); font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);" class="theme-title-glow">Görsel Ortam & Tema Seçenekleri</h3>
+                                <div style="display: flex; flex-direction: column; gap: 15px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                                        <label style="font-size: 0.85rem; color: var(--text-main);">Renk Paleti / Ortam:</label>
+                                        <select id="setting-theme" class="form-input" style="width: 200px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white; outline: none;">
+                                            <option value="blue">Neon Mavi (Varsayılan)</option>
+                                            <option value="purple">Mor Düş (Neon Mor)</option>
+                                            <option value="green">Zümrüt Yeşili (Neon Yeşil)</option>
+                                            <option value="red">Kızıl Şafak (Neon Kırmızı)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Investor Profile -->
+                            <div style="margin-bottom: 25px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+                                <h3 style="color: var(--neon-blue); font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);" class="theme-title-glow">Kişiselleştirilmiş Yatırımcı Profili</h3>
                                 <p class="specs-desc" style="margin-bottom: 15px; font-size: 0.8rem;">Yapay zeka finansal raporunu ve sohbet yanıtlarını bu yatırım tarzına göre özel olarak hazırlar.</p>
                                 
                                 <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -282,7 +328,7 @@
                             
                             <!-- General UI Preferences -->
                             <div style="margin-bottom: 25px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-                                <h3 style="color: #8a2be2; font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);">Genel Platform Tercihleri</h3>
+                                <h3 style="color: #8a2be2; font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);" class="theme-title-glow2">Genel Platform Tercihleri</h3>
                                 <div style="display: flex; flex-direction: column; gap: 15px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
                                         <label style="font-size: 0.85rem; color: var(--text-main);">Tercih Edilen Para Birimi:</label>
@@ -319,7 +365,7 @@
 
             <!-- FOOTER -->
             <footer style="text-align: center; font-size: 0.72rem; color: var(--text-muted); padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.05); background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); margin-top: auto; border-radius: 12px 12px 0 0;">
-                © 2026 Local RAG Finansal Yapay Zeka Ajanı | Geliştirici: <strong style="color:var(--neon-blue); font-weight: 600;">İnan Demir</strong>
+                © 2026 Local RAG Finansal Yapay Zeka Ajanı | Geliştirici: <strong style="color:var(--neon-blue); font-weight: 600;" id="footer-dev-name">İnan Demir</strong>
             </footer>
         </div>
     </div>
