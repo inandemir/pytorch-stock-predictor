@@ -1,4 +1,4 @@
-// Stock Predictor Premium Frontend Controller (Zero-Click RAG Pipeline)
+// Stock Predictor Premium Frontend Controller (Zero-Click RAG Pipeline with Sidebar SPA Layout)
 
 // Global DOM references
 const statusDot = document.getElementById("status-dot");
@@ -35,6 +35,33 @@ const noteModal = document.getElementById("note-modal");
 const btnOpenNoteModal = document.getElementById("btn-open-note-modal");
 const btnCloseModal = document.getElementById("btn-close-modal");
 
+// Sidebar SPA DOM references
+const menuDashboard = document.getElementById("menu-dashboard");
+const menuNotes = document.getElementById("menu-notes");
+const menuSettings = document.getElementById("menu-settings");
+
+const viewDashboard = document.getElementById("view-dashboard");
+const viewNotes = document.getElementById("view-notes");
+const viewSettings = document.getElementById("view-settings");
+
+const pageTitle = document.getElementById("page-title");
+const notesListContainer = document.getElementById("notes-list-container");
+
+// Note Read popup references
+const readModal = document.getElementById("read-modal");
+const btnCloseReadModal = document.getElementById("btn-close-read-modal");
+const readModalTitle = document.getElementById("read-modal-title");
+const readModalMeta = document.getElementById("read-modal-meta");
+const readModalContent = document.getElementById("read-modal-content");
+
+// Settings DOM references
+const settingEpochs = document.getElementById("setting-epochs");
+const settingLr = document.getElementById("setting-lr");
+const settingTemp = document.getElementById("setting-temp");
+const settingTokens = document.getElementById("setting-tokens");
+const settingPenalty = document.getElementById("setting-penalty");
+const btnSaveSettings = document.getElementById("btn-save-settings");
+
 // Global State
 let activeTicker = "";
 let activeFilename = "";
@@ -46,6 +73,7 @@ let lastLogEpoch = 0;
 async function init() {
     setupEventListeners();
     checkServerConnection();
+    loadSettings();
 }
 
 // 1. Check server connection
@@ -86,7 +114,21 @@ function setupEventListeners() {
         if (e.target === noteModal) {
             closeNoteModal();
         }
+        if (e.target === readModal) {
+            closeReadModal();
+        }
     });
+
+    // Sidebar view switches
+    menuDashboard.addEventListener("click", () => switchView("dashboard"));
+    menuNotes.addEventListener("click", () => switchView("notes"));
+    menuSettings.addEventListener("click", () => switchView("settings"));
+
+    // Settings save
+    btnSaveSettings.addEventListener("click", saveSettings);
+
+    // Read modal close
+    btnCloseReadModal.addEventListener("click", closeReadModal);
 }
 
 // 3. Log to Monospace Console
@@ -126,6 +168,11 @@ async function startAnalysis() {
     reportPlaceholder.style.display = "flex";
     reportContentMarkdown.innerHTML = "";
     
+    // Disable inputs until trained
+    btnOpenNoteModal.disabled = true;
+    chatInput.disabled = true;
+    btnChatSend.disabled = true;
+
     logConsole(`[SİSTEM] Yahoo Finance üzerinden ${ticker} verileri indiriliyor...`, true);
     
     try {
@@ -156,12 +203,14 @@ async function startTraining(filename) {
     processStateVal.textContent = "MODEL EĞİTİLİYOR...";
     processStateVal.style.color = "var(--neon-yellow)";
     
+    const epochsVal = localStorage.getItem("setting_epochs") || "25";
+    
     stockProgressContainer.style.display = "block";
-    stockProgressPercent.textContent = "Epoch: 0/25";
+    stockProgressPercent.textContent = `Epoch: 0/${epochsVal}`;
     stockProgressBarFill.style.width = "0%";
     stockLossVal.textContent = "Loss: 0.0000";
     
-    logConsole(`[PYTORCH] LSTM model eğitimi tetiklendi.`);
+    logConsole(`[PYTORCH] LSTM model eğitimi tetiklendi (Epochs: ${epochsVal}).`);
     logConsole(`[EĞİTİM] PyTorch gradyan güncellemesi başladı...`);
     lastLogEpoch = 0;
     
@@ -169,7 +218,7 @@ async function startTraining(filename) {
         const response = await fetch("/api/stock/train", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: filename })
+            body: JSON.stringify({ filename: filename, epochs: parseInt(epochsVal) })
         });
         const data = await response.json();
         if (data.error) {
@@ -255,7 +304,11 @@ function generateRAGReport() {
     
     logConsole(`[RAG] Finansal AI Raporlama süreci tetiklendi.`);
     
-    const eventSource = new EventSource(`/api/stock/report?filename=${activeFilename}`);
+    const temp = localStorage.getItem("setting_temp") || "0.3";
+    const tokens = localStorage.getItem("setting_tokens") || "600";
+    const penalty = localStorage.getItem("setting_penalty") || "1.2";
+
+    const eventSource = new EventSource(`/api/stock/report?filename=${activeFilename}&temperature=${temp}&max_tokens=${tokens}&frequency_penalty=${penalty}`);
     let rawMarkdownText = "";
     
     eventSource.onmessage = function (event) {
@@ -271,7 +324,7 @@ function generateRAGReport() {
             reportContentMarkdown.innerHTML = parseMarkdown(rawMarkdownText);
             
             // Scroll down as text streams
-            ragReportOutput.scrollTop = ragReportOutput.scrollHeight;
+            reportContentMarkdown.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } 
         else if (data.type === "error") {
             eventSource.close();
@@ -364,6 +417,7 @@ function renderApexChart(metrics) {
         ],
         xaxis: {
             categories: metrics.test_dates,
+            tickAmount: 10, // BUG FIX: prevent overcrowded axis labels
             labels: {
                 show: true,
                 rotate: -45,
@@ -404,6 +458,9 @@ function renderApexChart(metrics) {
 // 10. Minimal markdown parser for financial reports
 function parseMarkdown(text) {
     let html = text;
+    
+    // BUG FIX: Parse markdown links: [text](url) -> <a href="url" target="_blank" class="report-link">text</a>
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="report-link" style="color:var(--neon-blue); text-decoration:underline;">$1</a>');
     
     // Replace block headers: ### Header
     html = html.replace(/###\s+(.*)/g, '<h4 class="report-section-title">$1</h4>');
@@ -505,8 +562,12 @@ async function handleChatSend() {
     
     logConsole(`[SOHBET] Sorunuz semantik olarak dökümanlarda taranıyor: "${query}"`);
     
+    const temp = localStorage.getItem("setting_temp") || "0.3";
+    const tokens = localStorage.getItem("setting_tokens") || "600";
+    const penalty = localStorage.getItem("setting_penalty") || "1.2";
+
     // Connect to SSE stream
-    const eventSource = new EventSource(`/api/stock/chat?filename=${activeFilename}&query=${encodeURIComponent(query)}`);
+    const eventSource = new EventSource(`/api/stock/chat?filename=${activeFilename}&query=${encodeURIComponent(query)}&temperature=${temp}&max_tokens=${tokens}&frequency_penalty=${penalty}`);
     let rawChatText = "";
     
     eventSource.onmessage = function (event) {
@@ -561,6 +622,153 @@ function openNoteModal() {
 
 function closeNoteModal() {
     noteModal.style.display = "none";
+}
+
+// 14. Sidebar View Switcher & Notes Fetching
+function switchView(viewName) {
+    menuDashboard.classList.remove("active");
+    menuNotes.classList.remove("active");
+    menuSettings.classList.remove("active");
+
+    viewDashboard.style.display = "none";
+    viewNotes.style.display = "none";
+    viewSettings.style.display = "none";
+
+    if (viewName === "dashboard") {
+        menuDashboard.classList.add("active");
+        viewDashboard.style.display = "grid";
+        pageTitle.textContent = "Kontrol Paneli";
+    } 
+    else if (viewName === "notes") {
+        menuNotes.classList.add("active");
+        viewNotes.style.display = "block";
+        pageTitle.textContent = "Bilgi Deposu";
+        fetchNotes();
+    } 
+    else if (viewName === "settings") {
+        menuSettings.classList.add("active");
+        viewSettings.style.display = "block";
+        pageTitle.textContent = "Sistem Ayarları";
+    }
+}
+
+// 15. Fetch Saved Notes & Dents from Backend
+async function fetchNotes() {
+    notesListContainer.innerHTML = `
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
+            <div class="spinner-glow" style="margin: 0 auto 15px auto;"></div>
+            <span>Kayıtlı notlar ve dökümanlar yükleniyor...</span>
+        </div>
+    `;
+    try {
+        const response = await fetch("/api/stock/list_notes");
+        const data = await response.json();
+        
+        if (!data.notes || data.notes.length === 0) {
+            notesListContainer.innerHTML = `
+                <div class="empty-notes-placeholder" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
+                    <div style="font-size: 2.5rem; margin-bottom: 12px;">📁</div>
+                    <span>Yüklenmiş bilgi notu bulunmamaktadır.</span>
+                </div>
+            `;
+            return;
+        }
+        
+        notesListContainer.innerHTML = "";
+        data.notes.forEach(note => {
+            const card = document.createElement("div");
+            card.className = "card";
+            card.style.padding = "20px";
+            card.style.display = "flex";
+            card.style.flexDirection = "column";
+            card.style.justifyContent = "space-between";
+            card.style.gap = "12px";
+            card.style.border = "1px solid var(--glass-border)";
+            
+            card.innerHTML = `
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <span style="background:rgba(0,188,242,0.15); border:1px solid rgba(0,188,242,0.3); padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:700; color:var(--neon-blue);">${note.ticker}</span>
+                        <span style="font-size:0.7rem; color:var(--text-muted);">${note.date}</span>
+                    </div>
+                    <h4 style="font-size: 0.95rem; font-weight:600; color:white; margin-bottom: 6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${note.title}</h4>
+                    <p style="font-size: 0.8rem; color:var(--text-muted); line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:12px;">${note.content}</p>
+                </div>
+                <div style="display:flex; gap:10px; border-top:1px solid rgba(255,255,255,0.03); padding-top:10px;">
+                    <button class="btn" style="flex-grow:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:8px; border-radius:8px; font-size:0.75rem; font-weight:600; color:white; cursor:pointer;" onclick="readNoteDetail('${encodeURIComponent(note.title)}', '${encodeURIComponent(note.ticker)}', '${encodeURIComponent(note.date)}', '${encodeURIComponent(note.content)}')">Oku</button>
+                    <button class="btn" style="background:rgba(255,71,87,0.15); border:1px solid rgba(255,71,87,0.3); padding:8px 12px; border-radius:8px; font-size:0.75rem; font-weight:600; color:var(--neon-red); cursor:pointer;" onclick="deleteNote('${note.ticker}', '${note.filename}')">Sil</button>
+                </div>
+            `;
+            notesListContainer.appendChild(card);
+        });
+    } catch(e) {
+        console.error("Error loading notes:", e);
+        notesListContainer.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--neon-red);">
+                <span>Notlar yüklenirken hata oluştu!</span>
+            </div>
+        `;
+    }
+}
+
+// 16. Show details inside the Read Modal
+window.readNoteDetail = function(title, ticker, date, content) {
+    readModalTitle.textContent = decodeURIComponent(title);
+    readModalMeta.textContent = `Hisse: ${decodeURIComponent(ticker)} | Tarih: ${decodeURIComponent(date)}`;
+    readModalContent.textContent = decodeURIComponent(content);
+    readModal.style.display = "flex";
+};
+
+window.closeReadModal = function() {
+    readModal.style.display = "none";
+};
+
+// 17. Delete Note from vector/knowledge_base folder
+window.deleteNote = async function(ticker, filename) {
+    if (!confirm("Bu bilgi dökümanını silmek istediğinizden emin misiniz?")) return;
+    try {
+        const response = await fetch("/api/stock/delete_note", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ticker: ticker, filename: filename })
+        });
+        const data = await response.json();
+        if (data.success) {
+            logConsole(`[SİSTEM] Döküman silindi: ${filename}`);
+            fetchNotes();
+        } else {
+            alert(`Hata: ${data.error}`);
+        }
+    } catch(e) {
+        console.error(e);
+        alert("Dosya silinirken sunucu hatası oluştu.");
+    }
+};
+
+// 18. LocalSettings load & save helpers
+function loadSettings() {
+    const epochs = localStorage.getItem("setting_epochs") || "25";
+    const lr = localStorage.getItem("setting_lr") || "0.01";
+    const temp = localStorage.getItem("setting_temp") || "0.3";
+    const tokens = localStorage.getItem("setting_tokens") || "600";
+    const penalty = localStorage.getItem("setting_penalty") || "1.2";
+
+    settingEpochs.value = epochs;
+    settingLr.value = lr;
+    settingTemp.value = temp;
+    settingTokens.value = tokens;
+    settingPenalty.value = penalty;
+}
+
+function saveSettings() {
+    localStorage.setItem("setting_epochs", settingEpochs.value);
+    localStorage.setItem("setting_lr", settingLr.value);
+    localStorage.setItem("setting_temp", settingTemp.value);
+    localStorage.setItem("setting_tokens", settingTokens.value);
+    localStorage.setItem("setting_penalty", settingPenalty.value);
+
+    alert("Model parametre ayarları başarıyla kaydedildi.");
+    logConsole("[SİSTEM] Borsa Ajanı model ayarları güncellendi.");
 }
 
 // Start application

@@ -99,7 +99,7 @@ def bg_load_llm():
         llm_state["error"] = str(e)
         print(f"Error loading local LLM: {e}")
 
-def bg_train_stock(stock_filename):
+def bg_train_stock(stock_filename, epochs=25):
     global stock_training_state, stock_predictor
     try:
         stock_training_state["status"] = "training"
@@ -114,7 +114,7 @@ def bg_train_stock(stock_filename):
             stock_training_state["total_epochs"] = total
             stock_training_state["loss"] = loss_val
             
-        metrics = stock_predictor.train(stock_filename, progress_callback=progress_callback, epochs=25)
+        metrics = stock_predictor.train(stock_filename, progress_callback=progress_callback, epochs=epochs)
         
         stock_training_state["metrics"] = metrics
         stock_training_state["status"] = "ready"
@@ -150,13 +150,19 @@ def get_stock_status():
 def train_stock_model():
     data = request.json or {}
     stock_filename = data.get("filename")
+    epochs = data.get("epochs", 25)
+    try:
+        epochs = int(epochs)
+    except:
+        epochs = 25
+        
     if not is_safe_filename(stock_filename):
         return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
         
     if stock_training_state["status"] == "training":
         return jsonify({"error": "A model is already training"}), 400
         
-    thread = threading.Thread(target=bg_train_stock, args=(stock_filename,))
+    thread = threading.Thread(target=bg_train_stock, args=(stock_filename, epochs))
     thread.daemon = True
     thread.start()
     
@@ -253,6 +259,19 @@ def load_llm():
 @app.route("/api/stock/report", methods=["GET"])
 def generate_stock_report():
     filename = request.args.get("filename")
+    temp = request.args.get("temperature", 0.3)
+    max_tok = request.args.get("max_tokens", 600)
+    freq_pen = request.args.get("frequency_penalty", 1.2)
+    
+    try:
+        temp = float(temp)
+        max_tok = int(max_tok)
+        freq_pen = float(freq_pen)
+    except:
+        temp = 0.3
+        max_tok = 600
+        freq_pen = 1.2
+        
     if not is_safe_filename(filename):
         return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
         
@@ -381,9 +400,9 @@ Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:
                     {"role": "system", "content": "Sen profesyonel bir finans analisti ve borsa danışmanısın. Türkçe konuşuyorsun. Sayısal verileri ve haber özetlerini çok iyi analiz edersin."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=600,
-                frequency_penalty=1.2,
+                temperature=temp,
+                max_tokens=max_tok,
+                frequency_penalty=freq_pen,
                 presence_penalty=1.0,
                 stream=True
             )
@@ -432,7 +451,19 @@ def upload_stock_note():
 def chat_stock_agent():
     filename = request.args.get("filename")
     query = request.args.get("query", "").strip()
+    temp = request.args.get("temperature", 0.3)
+    max_tok = request.args.get("max_tokens", 600)
+    freq_pen = request.args.get("frequency_penalty", 1.2)
     
+    try:
+        temp = float(temp)
+        max_tok = int(max_tok)
+        freq_pen = float(freq_pen)
+    except:
+        temp = 0.3
+        max_tok = 600
+        freq_pen = 1.2
+        
     if not is_safe_filename(filename):
         return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
     if not query:
@@ -539,9 +570,9 @@ Lütfen yanıtını profesyonel, yapıcı ve objektif bir Türkçe ile yaz. Mark
                     {"role": "system", "content": "Sen profesyonel bir finans analisti ve borsa danışmanısın. Türkçe konuşuyorsun. Sayısal verileri ve haber özetlerini çok iyi analiz edersin."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=600,
-                frequency_penalty=1.2,
+                temperature=temp,
+                max_tokens=max_tok,
+                frequency_penalty=freq_pen,
                 presence_penalty=1.0,
                 stream=True
             )
@@ -554,6 +585,59 @@ Lütfen yanıtını profesyonel, yapıcı ve objektif bir Türkçe ile yaz. Mark
             yield f"data: {json.dumps({'type': 'error', 'text': f'LLM Çıkarım Hatası: {str(e)}'})}\n\n"
 
     return Response(sse_generator(), mimetype="text/event-stream")
+
+# 13. List all stock notes in the Knowledge Base
+@app.route("/api/stock/list_notes", methods=["GET"])
+def list_stock_notes():
+    notes_list = []
+    if os.path.exists(KNOWLEDGE_DIR):
+        for ticker in os.listdir(KNOWLEDGE_DIR):
+            ticker_dir = os.path.join(KNOWLEDGE_DIR, ticker)
+            if os.path.isdir(ticker_dir):
+                for f_name in os.listdir(ticker_dir):
+                    if f_name.endswith(".txt"):
+                        f_path = os.path.join(ticker_dir, f_name)
+                        try:
+                            parts = f_name.split("_")
+                            timestamp = int(parts[0])
+                            import datetime
+                            date_str = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                            with open(f_path, "r", encoding="utf-8") as f:
+                                lines = f.readlines()
+                                title = lines[0].replace("Başlık: ", "").strip() if len(lines) > 0 else "Başlıksız"
+                                content = "".join(lines[1:]).replace("İçerik: ", "").strip() if len(lines) > 1 else ""
+                            notes_list.append({
+                                "ticker": ticker,
+                                "filename": f_name,
+                                "date": date_str,
+                                "title": title,
+                                "content": content
+                            })
+                        except Exception as e:
+                            print(f"Error reading note: {e}")
+    return jsonify({"notes": notes_list})
+
+# 14. Delete a specific stock note
+@app.route("/api/stock/delete_note", methods=["POST"])
+def delete_stock_note():
+    data = request.json or {}
+    ticker = data.get("ticker", "").upper().strip()
+    filename = data.get("filename", "").strip()
+    
+    if not ticker or not filename:
+        return jsonify({"error": "Ticker ve filename parametreleri zorunludur!"}), 400
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Geçersiz dosya adı!"}), 400
+        
+    filepath = os.path.join(KNOWLEDGE_DIR, ticker, filename)
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            return jsonify({"success": True, "message": "Not başarıyla silindi."})
+        except Exception as e:
+            return jsonify({"error": f"Silme işlemi başarısız: {str(e)}"}), 500
+    else:
+        return jsonify({"error": "Dosya bulunamadı!"}), 404
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
