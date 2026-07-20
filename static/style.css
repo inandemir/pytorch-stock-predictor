@@ -1085,39 +1085,6 @@ body {
     font-family: monospace;
 }
 
-/* FLOATING SCROLL DOWN BUTTON */
-.scroll-down-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(0, 188, 242, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: white;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0, 188, 242, 0.4);
-    z-index: 100;
-    transition: var(--transition-fast);
-    animation: bounceBtn 2s infinite;
-}
-.scroll-down-btn:hover {
-    background: var(--primary);
-    transform: scale(1.08);
-    box-shadow: 0 6px 20px rgba(0, 188, 242, 0.6);
-}
-@keyframes bounceBtn {
-    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-    40% { transform: translateY(-5px); }
-    60% { transform: translateY(-3px); }
-}
-
 /* MARKET COMPARISON TABLE */
 .market-stats-table th, .market-stats-table td {
     padding: 8px 6px;

@@ -364,6 +364,12 @@ def generate_stock_report():
                 news_context += f"{idx+1}. Başlık: {n['title']}\n   Kaynak: {n['provider']} ({n['pub_date']})\n   Haber Analiz Duygusu: {sent_label}\n   Özet: {n['summary']}\n\n"
                 total_sentiment += n['sentiment']
             avg_sentiment = total_sentiment / len(retrieved_news)
+            
+            # Count sentiment stats
+            pos_cnt = sum(1 for n in retrieved_news if n['sentiment'] > 0.15)
+            neu_cnt = sum(1 for n in retrieved_news if -0.15 <= n['sentiment'] <= 0.15)
+            neg_cnt = sum(1 for n in retrieved_news if n['sentiment'] < -0.15)
+            yield f"data: {json.dumps({'type': 'sentiment_stats', 'positive': pos_cnt, 'neutral': neu_cnt, 'negative': neg_cnt})}\n\n"
         else:
             news_context = "Son haberlere ulaşılamadı.\n"
             

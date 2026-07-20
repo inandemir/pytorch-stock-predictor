@@ -92,7 +92,6 @@
                 <!-- Clean Pulsing Status dot only (No "Çevrimdışı Aktif" text) -->
                 <div class="header-status" style="padding: 8px 12px; display: flex; align-items: center; justify-content: center;">
                     <span class="status-dot offline" id="status-dot"></span>
-                    <span class="status-text" id="status-text" style="display:none;"></span>
                 </div>
             </header>
 
@@ -147,22 +146,26 @@
                             <!-- TECHNICAL INDICATORS CARD (RICH WIDGET) -->
                             <div class="card" id="indicators-card" style="display: none; padding: 20px; animation: modalFadeIn 0.3s ease-out;">
                                 <div class="card-title" style="margin-bottom: 12px; font-size: 0.9rem;">📊 Son Teknik Göstergeler</div>
-                                <div class="indicators-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                                <div class="indicators-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
                                     <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
-                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">Son Fiyat</span>
-                                        <span class="ind-val" id="ind-close" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                        <span class="ind-label" style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px;">Son Fiyat</span>
+                                        <span class="ind-val" id="ind-close" style="font-size: 0.9rem; font-weight: 700; color: white;">-</span>
                                     </div>
                                     <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
-                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">RSI (14)</span>
-                                        <span class="ind-val" id="ind-rsi" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                        <span class="ind-label" style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px;">RSI (14)</span>
+                                        <span class="ind-val" id="ind-rsi" style="font-size: 0.9rem; font-weight: 700; color: white;">-</span>
                                     </div>
                                     <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
-                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">Hareketli Ortalama (MA5)</span>
-                                        <span class="ind-val" id="ind-ma5" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                        <span class="ind-label" style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px;">Hareketli Ort.</span>
+                                        <span class="ind-val" id="ind-ma5" style="font-size: 0.9rem; font-weight: 700; color: white;">-</span>
                                     </div>
                                     <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
-                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">İşlem Hacmi</span>
-                                        <span class="ind-val" id="ind-volume" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                        <span class="ind-label" style="display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px;">İşlem Hacmi</span>
+                                        <span class="ind-val" id="ind-volume" style="font-size: 0.9rem; font-weight: 700; color: white;">-</span>
+                                    </div>
+                                    <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center; box-shadow: 0 0 10px rgba(0, 188, 242, 0.1);">
+                                        <span class="ind-label" style="display: block; font-size: 0.65rem; color: var(--neon-blue); margin-bottom: 4px; font-weight: 600;">LSTM Güven</span>
+                                        <span class="ind-val" id="ind-accuracy" style="font-size: 0.9rem; font-weight: 700; color: var(--neon-blue);">-</span>
                                     </div>
                                 </div>
                             </div>
@@ -208,8 +211,21 @@
                         <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 0; overflow-y: auto;">
                             <!-- AI FINANCIAL RAG REPORT CARD -->
                             <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 300px; position: relative;">
-                                <div class="card-title" style="margin-bottom: 16px;">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
+                                <div class="card-title" style="margin-bottom: 12px;">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
                                 
+                                <!-- RAG News Sentiment Marquee Bar -->
+                                <div id="sentiment-bar-container" style="display: none; margin-bottom: 15px; background: rgba(255,255,255,0.01); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px; animation: modalFadeIn 0.3s ease-out;">
+                                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-bottom:6px;">
+                                        <span>Haber NLP Duygu Dağılımı (RAG)</span>
+                                        <span id="sentiment-bar-text" style="font-weight:600; color:white;">Olumlu: 0 | Nötr: 0 | Olumsuz: 0</span>
+                                    </div>
+                                    <div class="sentiment-progress" style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,0.05);">
+                                        <div id="sentiment-pos-fill" style="width: 0%; background: var(--neon-green); transition: width 0.5s ease;"></div>
+                                        <div id="sentiment-neu-fill" style="width: 0%; background: var(--neon-yellow); transition: width 0.5s ease;"></div>
+                                        <div id="sentiment-neg-fill" style="width: 0%; background: var(--neon-red); transition: width 0.5s ease;"></div>
+                                    </div>
+                                </div>
+
                                 <!-- RAG Loading Spinner -->
                                 <div class="rag-loading-container" id="rag-loading-container" style="display:none; margin-bottom:15px;">
                                     <div style="display:flex; align-items:center; gap:12px;">
@@ -218,14 +234,9 @@
                                     </div>
                                 </div>
 
-                                <!-- Generated Markdown Rapor Content -->
-                                <div class="rag-report-output" id="rag-report-output" style="flex-grow: 1; display:none; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:20px; overflow-y:auto; border-radius:12px; position: relative;">
+                                <!-- Generated Markdown Rapor Content (Auto scrolling container) -->
+                                <div class="rag-report-output" id="rag-report-output" style="flex-grow: 1; display:none; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); padding:20px; overflow-y:auto; border-radius:12px;">
                                     <div class="report-content" id="report-content-markdown"></div>
-                                    
-                                    <!-- Floating Scroll Down Button -->
-                                    <button id="btn-scroll-report" class="scroll-down-btn" style="display: none;" title="Aşağı Kaydır">
-                                        ↓
-                                    </button>
                                 </div>
                                 
                                 <div class="empty-chart-placeholder" id="report-placeholder" style="flex-grow:1; height: unset;">

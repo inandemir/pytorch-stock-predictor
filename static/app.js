@@ -73,9 +73,14 @@ const indClose = document.getElementById("ind-close");
 const indRsi = document.getElementById("ind-rsi");
 const indMa5 = document.getElementById("ind-ma5");
 const indVolume = document.getElementById("ind-volume");
+const indAccuracy = document.getElementById("ind-accuracy");
 
-// Floating Scroll Button & Market Overview references
-const btnScrollReport = document.getElementById("btn-scroll-report");
+// Sentiment distribution widget & Market Overview references
+const sentimentBarContainer = document.getElementById("sentiment-bar-container");
+const sentimentBarText = document.getElementById("sentiment-bar-text");
+const sentimentPosFill = document.getElementById("sentiment-pos-fill");
+const sentimentNeuFill = document.getElementById("sentiment-neu-fill");
+const sentimentNegFill = document.getElementById("sentiment-neg-fill");
 const marketStatsTbody = document.getElementById("market-stats-tbody");
 
 // Global State
@@ -147,13 +152,7 @@ function setupEventListeners() {
     // Read modal close
     btnCloseReadModal.addEventListener("click", closeReadModal);
 
-    // Scroll down click
-    btnScrollReport.addEventListener("click", () => {
-        ragReportOutput.scrollTo({
-            top: ragReportOutput.scrollHeight,
-            behavior: 'smooth'
-        });
-    });
+
 }
 
 // 3. Log to Monospace Console
@@ -184,7 +183,10 @@ async function startAnalysis() {
     processStateVal.style.color = "var(--neon-blue)";
     stockProgressContainer.style.display = "none";
     indicatorsCard.style.display = "none";
-    btnScrollReport.style.display = "none";
+    sentimentBarContainer.style.display = "none";
+    sentimentPosFill.style.width = "0%";
+    sentimentNeuFill.style.width = "0%";
+    sentimentNegFill.style.width = "0%";
     chartPlaceholder.style.display = "flex";
     if (apexChartInstance) {
         apexChartInstance.destroy();
@@ -307,6 +309,7 @@ function pollTrainingStatus() {
                         else if (inds.volume > 1e3) volText = `${(inds.volume/1e3).toFixed(2)}K`;
                         indVolume.textContent = volText;
                         
+                        indAccuracy.textContent = `%${accuracy.toFixed(1)}`;
                         indicatorsCard.style.display = "block";
                     }
                     
@@ -367,18 +370,32 @@ function generateRAGReport() {
             ragLoadingText.textContent = data.text;
             logConsole(`[RAG] ${data.text}`);
         } 
+        else if (data.type === "sentiment_stats") {
+            const pos = data.positive || 0;
+            const neu = data.neutral || 0;
+            const neg = data.negative || 0;
+            const total = pos + neu + neg;
+            
+            if (total > 0) {
+                const posPct = (pos / total) * 100;
+                const neuPct = (neu / total) * 100;
+                const negPct = (neg / total) * 100;
+                
+                sentimentPosFill.style.width = `${posPct}%`;
+                sentimentNeuFill.style.width = `${neuPct}%`;
+                sentimentNegFill.style.width = `${negPct}%`;
+                
+                sentimentBarText.textContent = `Olumlu: ${pos} | Nötr: ${neu} | Olumsuz: ${neg}`;
+                sentimentBarContainer.style.display = "block";
+            }
+        }
         else if (data.type === "content") {
             ragReportOutput.style.display = "block";
             rawMarkdownText += data.text;
             reportContentMarkdown.innerHTML = parseMarkdown(rawMarkdownText);
             
-            // Show scroll button if content height exceeds container height
-            if (ragReportOutput.scrollHeight > ragReportOutput.clientHeight + 40) {
-                btnScrollReport.style.display = "flex";
-            }
-            
-            // Scroll down as text streams
-            reportContentMarkdown.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // Auto scrolling system: Directly update container scrollTop to scrollHeight
+            ragReportOutput.scrollTop = ragReportOutput.scrollHeight;
         } 
         else if (data.type === "error") {
             eventSource.close();
