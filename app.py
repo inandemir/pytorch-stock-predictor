@@ -15,6 +15,8 @@ CORS(app)
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+KNOWLEDGE_DIR = os.path.join(BASE_DIR, "knowledge_base")
+os.makedirs(KNOWLEDGE_DIR, exist_ok=True)
 
 def is_safe_filename(filename):
     if not filename:
@@ -393,6 +395,164 @@ Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'text': f'LLM Çıkarım Hatası: {str(e)}'})}\n\n"
             
+    return Response(sse_generator(), mimetype="text/event-stream")
+
+# 11. Upload Custom Stock Analysis Note / Document
+@app.route("/api/stock/upload_note", methods=["POST"])
+def upload_stock_note():
+    data = request.json or {}
+    ticker = data.get("ticker", "").upper().strip()
+    title = data.get("title", "").strip()
+    content = data.get("content", "").strip()
+    
+    # Validation
+    if not ticker or not all(c.isalnum() or c in "-." for c in ticker):
+        return jsonify({"error": "Geçersiz veya güvensiz borsa sembolü!"}), 400
+    if not title or not content:
+        return jsonify({"error": "Başlık ve içerik gereklidir!"}), 400
+        
+    ticker_dir = os.path.join(KNOWLEDGE_DIR, ticker)
+    os.makedirs(ticker_dir, exist_ok=True)
+    
+    # Safe filename creation from title
+    safe_title = "".join([c if c.isalnum() else "_" for c in title])
+    import time
+    filename = f"{int(time.time())}_{safe_title[:30]}.txt"
+    filepath = os.path.join(ticker_dir, filename)
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(f"Başlık: {title}\nİçerik: {content}\n")
+        return jsonify({"success": True, "message": f"{ticker} için yeni bilgi notu kaydedildi."})
+    except Exception as e:
+        return jsonify({"error": f"Dosya kaydedilemedi: {str(e)}"}), 500
+
+# 12. Interactive Financial Chat Assistant using Semantic RAG
+@app.route("/api/stock/chat", methods=["GET"])
+def chat_stock_agent():
+    filename = request.args.get("filename")
+    query = request.args.get("query", "").strip()
+    
+    if not is_safe_filename(filename):
+        return jsonify({"error": "Geçersiz veya güvensiz dosya adı!"}), 400
+    if not query:
+        return jsonify({"error": "Soru parametresi (query) eksik!"}), 400
+        
+    ticker_symbol = filename.split("_")[0]
+    
+    def sse_generator():
+        global llm_state, openai_client
+        
+        # 1. Check if LLM is ready
+        if llm_state["status"] != "ready":
+            yield f"data: {json.dumps({'type': 'status', 'text': 'Yapay zeka modeli belleğe yükleniyor...'})}\n\n"
+            if llm_state["status"] not in ["loading"]:
+                bg_load_llm()
+            import time
+            while llm_state["status"] == "loading":
+                prog = llm_state["progress"]
+                yield f"data: {json.dumps({'type': 'status', 'text': f'Model yükleniyor... %{prog}'})}\n\n"
+                time.sleep(0.5)
+            if llm_state["status"] == "error":
+                err_msg = llm_state["error"]
+                yield f"data: {json.dumps({'type': 'error', 'text': f'Model yüklenemedi: {err_msg}'})}\n\n"
+                return
+
+        yield f"data: {json.dumps({'type': 'status', 'text': 'Semantik döküman araması yapılıyor...'})}\n\n"
+        
+        # 2. Retrieve Latest News
+        retrieved_news = []
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            news_items = ticker.news[:5]
+            for item in news_items:
+                content = item.get('content', {})
+                title = content.get('title') or item.get('title')
+                summary = content.get('summary') or content.get('description') or item.get('summary') or item.get('description') or ""
+                if title:
+                    retrieved_news.append({"title": title, "summary": summary})
+        except Exception as e:
+            print(f"Error fetching news for chat: {e}")
+            
+        # 3. Retrieve Custom Notes
+        chunks = []
+        for n in retrieved_news:
+            chunks.append(f"Haber Başlığı: {n['title']}. Özet: {n['summary']}")
+            
+        ticker_dir = os.path.join(KNOWLEDGE_DIR, ticker_symbol)
+        if os.path.exists(ticker_dir):
+            for f_name in os.listdir(ticker_dir):
+                if f_name.endswith(".txt"):
+                    f_path = os.path.join(ticker_dir, f_name)
+                    try:
+                        with open(f_path, "r", encoding="utf-8") as f:
+                            text = f.read()
+                            for line in text.split("\n"):
+                                clean_l = line.strip()
+                                if len(clean_l) > 15:
+                                    chunks.append(clean_l)
+                    except Exception as e:
+                        print(f"Error reading file for chat: {e}")
+                        
+        # 4. Perform TF-IDF Cosine Similarity Semantic Search
+        retrieved_context = ""
+        if chunks:
+            try:
+                from sklearn.feature_extraction.text import TfidfVectorizer
+                from sklearn.metrics.pairwise import cosine_similarity
+                
+                vectorizer = TfidfVectorizer(stop_words='english')
+                tfidf_matrix = vectorizer.fit_transform(chunks)
+                query_vector = vectorizer.transform([query])
+                similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
+                
+                top_indices = similarities.argsort()[-3:][::-1]
+                retrieved_context = "\n".join([f"- {chunks[i]}" for i in top_indices if similarities[i] > 0.02])
+            except Exception as e:
+                print(f"Error doing vector search: {e}")
+                retrieved_context = "\n".join([f"- {chunks[i]}" for i in range(min(3, len(chunks)))])
+        else:
+            retrieved_context = "Hisse hakkında veri bulunamadı."
+            
+        if not retrieved_context.strip():
+            retrieved_context = "Hisse hakkında özel not, bilgi veya haber bulunamadı."
+            
+        # 5. Build prompt
+        prompt = f"""Sen yerel ve çevrimdışı çalışan, uzman bir Yapay Zeka Finansal Analistisin. 
+Aşağıdaki finansal bağlamı (RAG) kullanarak kullanıcının borsa/yatırım hakkındaki sorusunu Türkçe ve detaylı olarak yanıtla. 
+Eğer verilen bağlam soruyu doğrudan cevaplamak için yetersizse, kendi borsa bilgilerini de katarak mantıklı bir çıkarımda bulun ancak öncelikle dökümanlardan elde edilen RAG bağlamını temel al.
+
+Hisse Senedi: {ticker_symbol}
+Kullanıcı Sorusu: {query}
+
+Erişilen En Alakalı Bağlamlar (RAG):
+{retrieved_context}
+
+Lütfen yanıtını profesyonel, yapıcı ve objektif bir Türkçe ile yaz. Markdown formatı kullanabilirsin.
+"""
+        
+        # 6. Stream Completion
+        try:
+            stream = openai_client.chat.completions.create(
+                model="qwen2.5-0.5b",
+                messages=[
+                    {"role": "system", "content": "Sen profesyonel bir finans analisti ve borsa danışmanısın. Türkçe konuşuyorsun. Sayısal verileri ve haber özetlerini çok iyi analiz edersin."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=600,
+                frequency_penalty=1.2,
+                presence_penalty=1.0,
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    txt = chunk.choices[0].delta.content
+                    yield f"data: {json.dumps({'type': 'content', 'text': txt})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'text': f'LLM Çıkarım Hatası: {str(e)}'})}\n\n"
+
     return Response(sse_generator(), mimetype="text/event-stream")
 
 if __name__ == "__main__":

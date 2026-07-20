@@ -24,6 +24,14 @@ const ragReportOutput = document.getElementById("rag-report-output");
 const reportContentMarkdown = document.getElementById("report-content-markdown");
 const reportPlaceholder = document.getElementById("report-placeholder");
 
+// Advanced RAG Chat & Note references
+const noteTitleInput = document.getElementById("note-title-input");
+const noteContentInput = document.getElementById("note-content-input");
+const btnSaveNote = document.getElementById("btn-save-note");
+const chatMessages = document.getElementById("chat-messages");
+const chatInput = document.getElementById("chat-input");
+const btnChatSend = document.getElementById("btn-chat-send");
+
 // Global State
 let activeTicker = "";
 let activeFilename = "";
@@ -60,6 +68,13 @@ function setupEventListeners() {
     tickerInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
             startAnalysis();
+        }
+    });
+    btnSaveNote.addEventListener("click", handleSaveNote);
+    btnChatSend.addEventListener("click", handleChatSend);
+    chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            handleChatSend();
         }
     });
 }
@@ -194,6 +209,13 @@ function pollTrainingStatus() {
                     chartPlaceholder.style.display = "none";
                     renderApexChart(state.metrics);
                     
+                    // Enable Knowledge Base & Chat inputs
+                    noteTitleInput.disabled = false;
+                    noteContentInput.disabled = false;
+                    btnSaveNote.disabled = false;
+                    chatInput.disabled = false;
+                    btnChatSend.disabled = false;
+
                     // Step 3: Trigger RAG Report Generation immediately
                     generateRAGReport();
                 }
@@ -388,6 +410,135 @@ function parseMarkdown(text) {
     html = html.replace(/\n/g, '<br>');
     
     return html;
+}
+
+// 11. Save Custom Stock Note (Document Knowledge Base Upload)
+async function handleSaveNote() {
+    const title = noteTitleInput.value.trim();
+    const content = noteContentInput.value.trim();
+    
+    if (!title || !content) {
+        alert("Lütfen not başlığı ve içeriğini doldurun.");
+        return;
+    }
+    
+    btnSaveNote.disabled = true;
+    logConsole(`[BİLGİ] ${activeTicker} için yeni analiz notu kaydediliyor...`);
+    
+    try {
+        const response = await fetch("/api/stock/upload_note", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                ticker: activeTicker,
+                title: title,
+                content: content
+            })
+        });
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        logConsole(`[SİSTEM] Başarılı: ${data.message}`);
+        
+        // Notify inside chat messages
+        chatMessages.innerHTML += `
+            <div class="chat-bubble system" style="align-self:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:4px 10px; color:var(--text-muted); font-size:0.75rem; font-family:monospace; margin:5px 0;">
+                [SİSTEM] Yeni bilgi notu başarıyla yüklendi: "${title}"
+            </div>
+        `;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Clear fields
+        noteTitleInput.value = "";
+        noteContentInput.value = "";
+    } catch(err) {
+        console.error("Error uploading note:", err);
+        alert(`Not Kaydedilemedi: ${err.message}`);
+        logConsole(`[HATA] Not kaydedilemedi: ${err.message}`);
+    } finally {
+        btnSaveNote.disabled = false;
+    }
+}
+
+// 12. Send Chat Query to Semantic RAG Agent
+async function handleChatSend() {
+    const query = chatInput.value.trim();
+    if (!query) return;
+    
+    chatInput.value = "";
+    chatInput.disabled = true;
+    btnChatSend.disabled = true;
+    
+    // Add user question to messages list
+    chatMessages.innerHTML += `
+        <div class="chat-bubble user" style="align-self:flex-end; background:rgba(0,120,212,0.25); border:1px solid rgba(0,120,212,0.4); border-radius:12px 12px 2px 12px; padding:8px 12px; color:var(--text-main); font-size:0.85rem; max-width:85%; line-height:1.5; margin-top:5px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            ${query}
+        </div>
+    `;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Create unique ID for AI message container
+    const aiMessageId = `ai-msg-${Date.now()}`;
+    chatMessages.innerHTML += `
+        <div class="chat-bubble ai" id="${aiMessageId}" style="align-self:flex-start; background:rgba(138,43,226,0.15); border:1px solid rgba(138,43,226,0.3); border-radius:12px 12px 12px 2px; padding:8px 12px; color:var(--text-main); font-size:0.85rem; max-width:85%; line-height:1.5; margin-top:5px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <span class="typing-text" style="color:var(--text-muted); font-style:italic;">Düşünülüyor...</span>
+        </div>
+    `;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    const aiMsgElement = document.getElementById(aiMessageId);
+    
+    logConsole(`[SOHBET] Sorunuz semantik olarak dökümanlarda taranıyor: "${query}"`);
+    
+    // Connect to SSE stream
+    const eventSource = new EventSource(`/api/stock/chat?filename=${activeFilename}&query=${encodeURIComponent(query)}`);
+    let rawChatText = "";
+    
+    eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "status") {
+            const typingSpan = aiMsgElement.querySelector(".typing-text");
+            if (typingSpan) {
+                typingSpan.textContent = data.text;
+            }
+        } 
+        else if (data.type === "content") {
+            // Remove typing spinner/text
+            const typingSpan = aiMsgElement.querySelector(".typing-text");
+            if (typingSpan) {
+                aiMsgElement.innerHTML = "";
+            }
+            rawChatText += data.text;
+            aiMsgElement.innerHTML = parseMarkdown(rawChatText);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        } 
+        else if (data.type === "error") {
+            eventSource.close();
+            aiMsgElement.innerHTML = `<span style="color:var(--neon-red);">[HATA] ${data.text}</span>`;
+            chatInput.disabled = false;
+            btnChatSend.disabled = false;
+            logConsole(`[HATA] Sohbet hatası: ${data.text}`);
+        } 
+        else if (data.type === "done") {
+            eventSource.close();
+            chatInput.disabled = false;
+            btnChatSend.disabled = false;
+            chatInput.focus();
+            logConsole(`[SOHBET] Cevap başarıyla akıtıldı.`);
+        }
+    };
+    
+    eventSource.onerror = function (err) {
+        console.error("SSE Chat connection error:", err);
+        eventSource.close();
+        aiMsgElement.innerHTML = `<span style="color:var(--neon-red);">[HATA] Sunucuyla bağlantı kesildi.</span>`;
+        chatInput.disabled = false;
+        btnChatSend.disabled = false;
+    };
 }
 
 // Start application

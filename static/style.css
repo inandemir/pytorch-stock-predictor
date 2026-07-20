@@ -754,6 +754,59 @@ body {
     color: var(--neon-blue);
 }
 
+/* CHAT PANEL & BUBBLES */
+.chat-container::-webkit-scrollbar {
+    width: 4px;
+}
+.chat-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.chat-bubble {
+    font-size: 0.84rem;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-top: 4px;
+    transition: var(--transition-normal);
+}
+
+.chat-bubble.ai {
+    align-self: flex-start;
+    background: rgba(138, 43, 226, 0.12);
+    border: 1px solid rgba(138, 43, 226, 0.25);
+    border-radius: 12px 12px 12px 2px;
+    color: var(--text-main);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.chat-bubble.user {
+    align-self: flex-end;
+    background: rgba(0, 120, 212, 0.22);
+    border: 1px solid rgba(0, 120, 212, 0.35);
+    border-radius: 12px 12px 2px 12px;
+    color: var(--text-main);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.chat-bubble.system {
+    align-self: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-family: monospace;
+    margin: 6px 0;
+    text-align: center;
+    width: 90%;
+}
+
 /* RESPONSIVENESS */
 @media (max-width: 1200px) {
     .app-main {
