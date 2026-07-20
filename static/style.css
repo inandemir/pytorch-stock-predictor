@@ -1015,6 +1015,76 @@ body {
     color: white;
 }
 
+/* MARKET TICKER BAR */
+.market-ticker-bar {
+    display: flex;
+    gap: 25px;
+    padding: 10px 24px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    overflow-x: auto;
+    white-space: nowrap;
+    align-items: center;
+    scrollbar-width: none;
+}
+.market-ticker-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.ticker-item {
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ticker-name {
+    color: var(--text-muted);
+}
+.ticker-val {
+    color: white;
+}
+.ticker-change.positive {
+    color: var(--neon-green);
+}
+.ticker-change.negative {
+    color: var(--neon-red);
+}
+
+/* TECHNICAL INDICATOR CARDS */
+.indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+.indicator-box {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+    transition: var(--transition-fast);
+}
+.indicator-box:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+.ind-label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.ind-val {
+    font-size: 0.95rem;
+    font-weight: 750;
+    color: white;
+    font-family: monospace;
+}
+
 /* RESPONSIVENESS */
 @media (max-width: 992px) {
     .app-layout {

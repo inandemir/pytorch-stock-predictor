@@ -13,6 +13,32 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 </head>
 <body>
+    <!-- FIXED OVERLAYS AT ROOT BODY LEVEL TO PREVENT SHIFTING -->
+    <!-- NOTE UPLOAD POPUP MODAL -->
+    <div id="note-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-modal" id="btn-close-modal">&times;</span>
+            <div class="modal-title">Bilgi Deposuna Döküman Ekle</div>
+            <p class="modal-desc">Seçili hisse senedine dair analiz notu, PDF metni veya önemli gelişmeleri ekleyin. Sohbet modülü bu dökümanları öncelikli kaynak olarak tarayacaktır.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <input type="text" id="note-title-input" class="form-input" placeholder="Not Başlığı (örn: Son Çeyrek AI Çip Raporu)" style="background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:white; font-size:0.9rem; outline:none;" disabled>
+                <textarea id="note-content-input" class="form-input" placeholder="Not içeriğini veya haber metnini buraya yapıştırın..." style="height: 160px; background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:white; font-size:0.9rem; outline:none; resize:none; font-family:var(--font-main);" disabled></textarea>
+                <button id="btn-save-note" class="btn btn-primary" style="padding:12px; border-radius:10px; font-size:0.95rem; font-weight:600;" disabled>Bilgi Notu Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTE READ POPUP MODAL -->
+    <div id="read-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="width: 550px;">
+            <span class="close-modal" id="btn-close-read-modal">&times;</span>
+            <div class="modal-title" id="read-modal-title">Not Başlığı</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:12px;" id="read-modal-meta">Hisse: - | Tarih: -</div>
+            <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:15px; max-height:300px; overflow-y:auto; color:var(--text-main); font-size:0.9rem; line-height:1.6; white-space:pre-wrap;" id="read-modal-content">Not içeriği...</div>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
     <div class="app-layout">
         <!-- LEFT SIDEBAR -->
         <aside class="app-sidebar">
@@ -39,7 +65,7 @@
                 </a>
                 <a href="#" class="menu-item" id="menu-settings">
                     <span class="menu-icon">⚙️</span>
-                    <span class="menu-label">Sistem Ayarları</span>
+                    <span class="menu-label">Genel Ayarlar</span>
                 </a>
             </nav>
             
@@ -51,6 +77,15 @@
 
         <!-- MAIN CONTENT AREA -->
         <div class="app-content-wrapper">
+            <!-- TOP MARKET TICKER BAR -->
+            <div class="market-ticker-bar">
+                <div class="ticker-item"><span class="ticker-name">S&P 500</span> <span class="ticker-val">5,450.20</span> <span class="ticker-change positive">▲ +0.45%</span></div>
+                <div class="ticker-item"><span class="ticker-name">NASDAQ</span> <span class="ticker-val">18,210.15</span> <span class="ticker-change positive">▲ +0.72%</span></div>
+                <div class="ticker-item"><span class="ticker-name">DOW JONES</span> <span class="ticker-val">39,120.40</span> <span class="ticker-change negative">▼ -0.12%</span></div>
+                <div class="ticker-item"><span class="ticker-name">BITCOIN</span> <span class="ticker-val">$64,250.00</span> <span class="ticker-change positive">▲ +2.35%</span></div>
+                <div class="ticker-item"><span class="ticker-name">ALTIN (ONS)</span> <span class="ticker-val">$2,420.50</span> <span class="ticker-change positive">▲ +1.10%</span></div>
+            </div>
+
             <!-- TOP STATUS HEADER -->
             <header class="app-header">
                 <div class="header-title" id="page-title">Kontrol Paneli</div>
@@ -66,7 +101,7 @@
                 <!-- VIEW 1: DASHBOARD VIEW -->
                 <div class="app-view active" id="view-dashboard">
                     <div class="app-main" style="grid-template-columns: 1fr 1fr; height: 100%; gap: 20px;">
-                        <!-- LEFT COLUMN: Search & Chart -->
+                        <!-- LEFT COLUMN: Search, Indicators & Chart -->
                         <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 0;">
                             <!-- SEARCH & CONTROL CARD -->
                             <div class="card" style="padding: 20px;">
@@ -75,7 +110,7 @@
                                 
                                 <div style="display: flex; gap: 10px; margin-bottom: 12px;">
                                     <input type="text" id="ticker-input" class="form-input" placeholder="Örn: AAPL, NVDA, TSLA, BTC-USD" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:12px; padding:12px 16px; color:white; font-weight:600; outline:none; text-transform:uppercase; font-size:0.95rem;">
-                                    <button id="btn-analyze" class="btn btn-primary" style="padding:12px 28px; border-radius:12px; font-size:0.95rem; font-weight:700;">Analiz Et (RAG)</button>
+                                    <button id="btn-analyze" class="btn btn-primary" style="padding:12px 28px; border-radius:12px; font-size:0.95rem; font-weight:700;">Analiz Et</button>
                                 </div>
 
                                 <!-- Row for Note Add Button and Specs -->
@@ -84,8 +119,8 @@
                                         📝 Bilgi Deposu (Not Ekle)
                                     </button>
                                     <div style="font-size: 0.7rem; color: var(--text-muted); text-align: right; display: flex; flex-direction: column; gap: 2px;">
-                                        <span>LSTM: 5 Teknik Gösterge (MA5, MA20, RSI, Vol)</span>
-                                        <span>NLP: TF-IDF & Cosine Similarity | LLM: Qwen (Yerel)</span>
+                                        <span>LSTM Model: 5 Teknik Gösterge Girdisi</span>
+                                        <span>NLP: TF-IDF Semantik Arama | LLM: Qwen (Yerel)</span>
                                     </div>
                                 </div>
 
@@ -108,10 +143,33 @@
                                 </div>
                             </div>
 
+                            <!-- TECHNICAL INDICATORS CARD (RICH WIDGET) -->
+                            <div class="card" id="indicators-card" style="display: none; padding: 20px; animation: modalFadeIn 0.3s ease-out;">
+                                <div class="card-title" style="margin-bottom: 12px; font-size: 0.9rem;">📊 Son Teknik Göstergeler</div>
+                                <div class="indicators-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                                    <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
+                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">Son Fiyat</span>
+                                        <span class="ind-val" id="ind-close" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                    </div>
+                                    <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
+                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">RSI (14)</span>
+                                        <span class="ind-val" id="ind-rsi" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                    </div>
+                                    <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
+                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">Hareketli Ortalama (MA5)</span>
+                                        <span class="ind-val" id="ind-ma5" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                    </div>
+                                    <div class="indicator-box" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; text-align: center;">
+                                        <span class="ind-label" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">İşlem Hacmi</span>
+                                        <span class="ind-val" id="ind-volume" style="font-size: 0.95rem; font-weight: 700; color: white;">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- CHART CARD -->
-                            <div class="card flex-grow" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 240px; overflow: hidden;">
+                            <div class="card flex-grow" style="display: flex; flex-direction: column; padding: 20px; justify-content: center; min-height: 220px; overflow: hidden;">
                                 <div class="card-title">Hisse Fiyat Trendi (Gerçek vs LSTM Tahmini)</div>
-                                <div class="stock-chart-container" id="stock-chart-container" style="flex-grow: 1; border: none; background: transparent; padding: 0; min-height: unset; justify-content: center; display: flex; align-items: center;">
+                                <div class="stock-chart-container" id="stock-chart-container" style="flex-grow: 1; border: none; background: transparent; padding: 0; min-height: unset; display: flex; align-items: center; justify-content: center;">
                                     <div class="empty-chart-placeholder" id="chart-placeholder">
                                         <div class="chart-placeholder-icon">📈</div>
                                         <span>Yukarıdan bir hisse senedi girip "Analiz Et" butonuna tıklayın.</span>
@@ -124,7 +182,7 @@
                         <!-- RIGHT COLUMN: AI Report, Q&A Chat, and Log Console -->
                         <section class="panel" style="display: flex; flex-direction: column; gap: 20px; padding: 0; overflow-y: auto;">
                             <!-- AI FINANCIAL RAG REPORT CARD -->
-                            <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 320px;">
+                            <div class="card flex-grow" style="display: flex; flex-direction: column; overflow: hidden; padding: 24px; min-height: 300px;">
                                 <div class="card-title" style="margin-bottom: 16px;">🤖 Yapay Zeka Finansal Raporu (Local RAG)</div>
                                 
                                 <!-- RAG Loading Spinner -->
@@ -194,44 +252,65 @@
                 <!-- VIEW 3: SETTINGS VIEW -->
                 <div class="app-view" id="view-settings" style="display: none;">
                     <div class="panel" style="padding: 0; display: flex; flex-direction: column; gap: 20px; height: 100%; overflow-y: auto;">
-                        <div class="card" style="padding: 24px; max-width: 600px; margin: 0 auto; width: 100%;">
-                            <div class="card-title" style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">⚙️ Ajan ve Model Parametre Ayarları</div>
+                        <div class="card" style="padding: 24px; max-width: 650px; margin: 0 auto; width: 100%;">
+                            <div class="card-title" style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">⚙️ Genel Kullanıcı ve Yatırımcı Tercihleri</div>
                             
-                            <!-- LSTM Settings -->
+                            <!-- Investor Profile -->
                             <div style="margin-bottom: 25px;">
-                                <h3 style="color: var(--neon-blue); font-size: 0.95rem; margin-bottom: 12px; font-family: var(--font-heading);">PyTorch LSTM Parametreleri</h3>
-                                <div style="display: flex; flex-direction: column; gap: 12px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <label style="font-size: 0.85rem; color: var(--text-main);">Eğitim Epoch Sayısı (Epochs):</label>
-                                        <input type="number" id="setting-epochs" class="form-input" value="25" min="2" max="100" style="width: 80px; text-align: center; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px; color: white;">
+                                <h3 style="color: var(--neon-blue); font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);">Kişiselleştirilmiş Yatırımcı Profili</h3>
+                                <p class="specs-desc" style="margin-bottom: 15px; font-size: 0.8rem;">Yapay zeka finansal raporunu ve sohbet yanıtlarını bu yatırım tarzına göre özel olarak hazırlar.</p>
+                                
+                                <div style="display: flex; flex-direction: column; gap: 15px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                                        <label style="font-size: 0.85rem; color: var(--text-main);">Risk Toleransı:</label>
+                                        <select id="setting-risk" class="form-input" style="width: 200px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white; outline: none;">
+                                            <option value="low">Korumacı (Düşük Risk)</option>
+                                            <option value="medium" selected>Dengeli (Orta Risk)</option>
+                                            <option value="high">Agresif (Yüksek Risk)</option>
+                                        </select>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <label style="font-size: 0.85rem; color: var(--text-main);">Öğrenme Oranı (Learning Rate):</label>
-                                        <input type="number" id="setting-lr" class="form-input" value="0.01" step="0.001" min="0.0001" max="0.1" style="width: 80px; text-align: center; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px; color: white;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                                        <label style="font-size: 0.85rem; color: var(--text-main);">Yatırım Vadesi:</label>
+                                        <select id="setting-horizon" class="form-input" style="width: 200px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white; outline: none;">
+                                            <option value="short">Kısa Vade (Haftalık/Aylık)</option>
+                                            <option value="medium" selected>Orta Vade (Aylık/Yıllık)</option>
+                                            <option value="long">Uzun Vade (Yıllık Yatırım)</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
                             
-                            <!-- LLM Settings -->
+                            <!-- General UI Preferences -->
                             <div style="margin-bottom: 25px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-                                <h3 style="color: #8a2be2; font-size: 0.95rem; margin-bottom: 12px; font-family: var(--font-heading);">Yerel Qwen RAG Parametreleri</h3>
-                                <div style="display: flex; flex-direction: column; gap: 12px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <label style="font-size: 0.85rem; color: var(--text-main);">Yaratıcılık Derecesi (Temperature):</label>
-                                        <input type="number" id="setting-temp" class="form-input" value="0.3" step="0.1" min="0.0" max="1.5" style="width: 80px; text-align: center; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px; color: white;">
+                                <h3 style="color: #8a2be2; font-size: 0.95rem; margin-bottom: 15px; font-family: var(--font-heading);">Genel Platform Tercihleri</h3>
+                                <div style="display: flex; flex-direction: column; gap: 15px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                                        <label style="font-size: 0.85rem; color: var(--text-main);">Tercih Edilen Para Birimi:</label>
+                                        <select id="setting-currency" class="form-input" style="width: 200px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white; outline: none;">
+                                            <option value="USD" selected>Amerikan Doları (USD - $)</option>
+                                            <option value="TRY">Türk Lirası (TRY - ₺)</option>
+                                            <option value="EUR">Euro (EUR - €)</option>
+                                        </select>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <label style="font-size: 0.85rem; color: var(--text-main);">Maksimum Token Boyutu (Max Tokens):</label>
-                                        <input type="number" id="setting-tokens" class="form-input" value="600" min="50" max="2000" style="width: 80px; text-align: center; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px; color: white;">
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <label style="font-size: 0.85rem; color: var(--text-main);">Tekrarlama Cezası (Frequency Penalty):</label>
-                                        <input type="number" id="setting-penalty" class="form-input" value="1.2" step="0.1" min="0.0" max="2.0" style="width: 80px; text-align: center; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px; color: white;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                                        <label style="font-size: 0.85rem; color: var(--text-main);">Haber Akış Kaynağı:</label>
+                                        <select id="setting-news" class="form-input" style="width: 200px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 12px; color: white; outline: none;">
+                                            <option value="yahoo" selected>Yahoo Finance API</option>
+                                            <option value="marketwatch">MarketWatch RSS</option>
+                                            <option value="bloomberg">Bloomberg Local Cache</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Hidden items for LSTM parameters background compatibility -->
+                            <input type="number" id="setting-epochs" value="25" style="display:none;">
+                            <input type="number" id="setting-lr" value="0.01" style="display:none;">
+                            <input type="number" id="setting-temp" value="0.3" style="display:none;">
+                            <input type="number" id="setting-tokens" value="600" style="display:none;">
+                            <input type="number" id="setting-penalty" value="1.2" style="display:none;">
                             
-                            <button id="btn-save-settings" class="btn btn-primary" style="width: 100%; padding: 12px; border-radius: 10px; font-size: 0.95rem; font-weight: 600;">Parametreleri Kaydet</button>
+                            <button id="btn-save-settings" class="btn btn-primary" style="width: 100%; padding: 12px; border-radius: 10px; font-size: 0.95rem; font-weight: 600;">Tercihleri Kaydet</button>
                         </div>
                     </div>
                 </div>
@@ -245,31 +324,7 @@
         </div>
     </div>
 
-    <!-- NOTE UPLOAD POPUP MODAL -->
-    <div id="note-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-modal" id="btn-close-modal">&times;</span>
-            <div class="modal-title">Bilgi Deposuna Not Ekle</div>
-            <p class="modal-desc">Seçili hisse senedine dair analiz notu, PDF metni veya önemli gelişmeleri ekleyin. Sohbet modülü bu dökümanları semantik olarak tarayacaktır.</p>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <input type="text" id="note-title-input" class="form-input" placeholder="Not Başlığı (örn: Son Çeyrek AI Çip Raporu)" style="background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:white; font-size:0.9rem; outline:none;" disabled>
-                <textarea id="note-content-input" class="form-input" placeholder="Not içeriğini veya haber metnini buraya yapıştırın..." style="height: 160px; background:rgba(0,0,0,0.5); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:white; font-size:0.9rem; outline:none; resize:none; font-family:var(--font-main);" disabled></textarea>
-                <button id="btn-save-note" class="btn btn-primary" style="padding:12px; border-radius:10px; font-size:0.95rem; font-weight:600;" disabled>Bilgi Notu Kaydet</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- NOTE READ POPUP MODAL -->
-    <div id="read-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="width: 550px;">
-            <span class="close-modal" id="btn-close-read-modal">&times;</span>
-            <div class="modal-title" id="read-modal-title">Not Başlığı</div>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:12px;" id="read-modal-meta">Hisse: - | Tarih: -</div>
-            <div style="background:rgba(0,0,0,0.3); border:1px solid var(--glass-border); border-radius:10px; padding:15px; max-height:300px; overflow-y:auto; color:var(--text-main); font-size:0.9rem; line-height:1.6; white-space:pre-wrap;" id="read-modal-content">Not içeriği...</div>
-        </div>
-    </div>
-
-    <!-- Hidden element references to prevent app.js DOM selection crashes -->
+    <!-- Hidden dummy element references to prevent app.js DOM selection crashes -->
     <select id="stock-select" style="display:none;"></select>
     <button id="btn-train-stock" style="display:none;"></button>
     <select id="stock-date-select" style="display:none;"></select>

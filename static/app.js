@@ -55,12 +55,23 @@ const readModalMeta = document.getElementById("read-modal-meta");
 const readModalContent = document.getElementById("read-modal-content");
 
 // Settings DOM references
+const settingRisk = document.getElementById("setting-risk");
+const settingHorizon = document.getElementById("setting-horizon");
+const settingCurrency = document.getElementById("setting-currency");
+const settingNews = document.getElementById("setting-news");
 const settingEpochs = document.getElementById("setting-epochs");
 const settingLr = document.getElementById("setting-lr");
 const settingTemp = document.getElementById("setting-temp");
 const settingTokens = document.getElementById("setting-tokens");
 const settingPenalty = document.getElementById("setting-penalty");
 const btnSaveSettings = document.getElementById("btn-save-settings");
+
+// Technical Indicators card references
+const indicatorsCard = document.getElementById("indicators-card");
+const indClose = document.getElementById("ind-close");
+const indRsi = document.getElementById("ind-rsi");
+const indMa5 = document.getElementById("ind-ma5");
+const indVolume = document.getElementById("ind-volume");
 
 // Global State
 let activeTicker = "";
@@ -158,6 +169,7 @@ async function startAnalysis() {
     processStateVal.textContent = "VERİLER İNDİRİLİYOR...";
     processStateVal.style.color = "var(--neon-blue)";
     stockProgressContainer.style.display = "none";
+    indicatorsCard.style.display = "none";
     chartPlaceholder.style.display = "flex";
     if (apexChartInstance) {
         apexChartInstance.destroy();
@@ -264,6 +276,25 @@ function pollTrainingStatus() {
                     logConsole(` - RMSE (Hata payı): ${state.metrics.rmse.toFixed(4)}`);
                     logConsole(` - Model Doğruluk Oranı: %${accuracy.toFixed(2)}`);
                     
+                    // Render computed technical indicators card
+                    if (state.metrics.latest_indicators) {
+                        const inds = state.metrics.latest_indicators;
+                        const currency = localStorage.getItem("setting_currency") || "USD";
+                        const currencySymbol = currency === "TRY" ? "₺" : (currency === "EUR" ? "€" : "$");
+                        
+                        indClose.textContent = `${currencySymbol}${inds.close.toFixed(2)}`;
+                        indRsi.textContent = `${inds.rsi.toFixed(1)} (${inds.rsi > 70 ? 'Aşırı Alım' : (inds.rsi < 30 ? 'Aşırı Satım' : 'Nötr')})`;
+                        indMa5.textContent = `${currencySymbol}${inds.ma5.toFixed(2)}`;
+                        
+                        // Format volume
+                        let volText = inds.volume.toLocaleString();
+                        if (inds.volume > 1e6) volText = `${(inds.volume/1e6).toFixed(2)}M`;
+                        else if (inds.volume > 1e3) volText = `${(inds.volume/1e3).toFixed(2)}K`;
+                        indVolume.textContent = volText;
+                        
+                        indicatorsCard.style.display = "block";
+                    }
+                    
                     // Render ApexChart
                     chartPlaceholder.style.display = "none";
                     renderApexChart(state.metrics);
@@ -307,8 +338,11 @@ function generateRAGReport() {
     const temp = localStorage.getItem("setting_temp") || "0.3";
     const tokens = localStorage.getItem("setting_tokens") || "600";
     const penalty = localStorage.getItem("setting_penalty") || "1.2";
+    const risk = localStorage.getItem("setting_risk") || "medium";
+    const horizon = localStorage.getItem("setting_horizon") || "medium";
+    const currency = localStorage.getItem("setting_currency") || "USD";
 
-    const eventSource = new EventSource(`/api/stock/report?filename=${activeFilename}&temperature=${temp}&max_tokens=${tokens}&frequency_penalty=${penalty}`);
+    const eventSource = new EventSource(`/api/stock/report?filename=${activeFilename}&temperature=${temp}&max_tokens=${tokens}&frequency_penalty=${penalty}&risk=${risk}&horizon=${horizon}&currency=${currency}`);
     let rawMarkdownText = "";
     
     eventSource.onmessage = function (event) {
@@ -565,9 +599,12 @@ async function handleChatSend() {
     const temp = localStorage.getItem("setting_temp") || "0.3";
     const tokens = localStorage.getItem("setting_tokens") || "600";
     const penalty = localStorage.getItem("setting_penalty") || "1.2";
+    const risk = localStorage.getItem("setting_risk") || "medium";
+    const horizon = localStorage.getItem("setting_horizon") || "medium";
+    const currency = localStorage.getItem("setting_currency") || "USD";
 
     // Connect to SSE stream
-    const eventSource = new EventSource(`/api/stock/chat?filename=${activeFilename}&query=${encodeURIComponent(query)}&temperature=${temp}&max_tokens=${tokens}&frequency_penalty=${penalty}`);
+    const eventSource = new EventSource(`/api/stock/chat?filename=${activeFilename}&query=${encodeURIComponent(query)}&temperature=${temp}&max_tokens=${tokens}&frequency_penalty=${penalty}&risk=${risk}&horizon=${horizon}&currency=${currency}`);
     let rawChatText = "";
     
     eventSource.onmessage = function (event) {
@@ -747,28 +784,39 @@ window.deleteNote = async function(ticker, filename) {
 
 // 18. LocalSettings load & save helpers
 function loadSettings() {
-    const epochs = localStorage.getItem("setting_epochs") || "25";
-    const lr = localStorage.getItem("setting_lr") || "0.01";
-    const temp = localStorage.getItem("setting_temp") || "0.3";
-    const tokens = localStorage.getItem("setting_tokens") || "600";
-    const penalty = localStorage.getItem("setting_penalty") || "1.2";
+    const risk = localStorage.getItem("setting_risk") || "medium";
+    const horizon = localStorage.getItem("setting_horizon") || "medium";
+    const currency = localStorage.getItem("setting_currency") || "USD";
+    const news = localStorage.getItem("setting_news") || "yahoo";
 
-    settingEpochs.value = epochs;
-    settingLr.value = lr;
-    settingTemp.value = temp;
-    settingTokens.value = tokens;
-    settingPenalty.value = penalty;
+    settingRisk.value = risk;
+    settingHorizon.value = horizon;
+    settingCurrency.value = currency;
+    settingNews.value = news;
+
+    // Set hidden inputs for compatibility
+    settingEpochs.value = "25";
+    settingLr.value = "0.01";
+    settingTemp.value = "0.3";
+    settingTokens.value = "600";
+    settingPenalty.value = "1.2";
 }
 
 function saveSettings() {
-    localStorage.setItem("setting_epochs", settingEpochs.value);
-    localStorage.setItem("setting_lr", settingLr.value);
-    localStorage.setItem("setting_temp", settingTemp.value);
-    localStorage.setItem("setting_tokens", settingTokens.value);
-    localStorage.setItem("setting_penalty", settingPenalty.value);
+    localStorage.setItem("setting_risk", settingRisk.value);
+    localStorage.setItem("setting_horizon", settingHorizon.value);
+    localStorage.setItem("setting_currency", settingCurrency.value);
+    localStorage.setItem("setting_news", settingNews.value);
 
-    alert("Model parametre ayarları başarıyla kaydedildi.");
-    logConsole("[SİSTEM] Borsa Ajanı model ayarları güncellendi.");
+    // Save defaults for compatibility
+    localStorage.setItem("setting_epochs", "25");
+    localStorage.setItem("setting_lr", "0.01");
+    localStorage.setItem("setting_temp", "0.3");
+    localStorage.setItem("setting_tokens", "600");
+    localStorage.setItem("setting_penalty", "1.2");
+
+    alert("Tercihler ve Yatırımcı Profili başarıyla kaydedildi.");
+    logConsole("[SİSTEM] Genel borsa ayarları ve kullanıcı yatırımcı profili güncellendi.");
 }
 
 // Start application

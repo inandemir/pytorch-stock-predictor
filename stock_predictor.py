@@ -114,7 +114,17 @@ class StockPredictorEngine:
         valid_dates = dates[self.lookback:]
         test_dates = valid_dates[split:]
         
-        return X_train, X_test, y_train, y_test, df['Close'].values, split, test_dates
+        # Get latest calculated indicators before scaling
+        latest_row = df.iloc[-1]
+        latest_indicators = {
+            "close": float(latest_row["Close"]),
+            "volume": float(latest_row["Volume"]),
+            "ma5": float(latest_row["MA5"]),
+            "ma20": float(latest_row["MA20"]),
+            "rsi": float(latest_row["RSI"]) if not pd.isna(latest_row["RSI"]) else 50.0
+        }
+        
+        return X_train, X_test, y_train, y_test, df['Close'].values, split, test_dates, latest_indicators
 
     def train(self, stock_filename, progress_callback=None, epochs=25):
         """Trains the LSTM model on a specific stock CSV."""
@@ -122,7 +132,7 @@ class StockPredictorEngine:
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Stock data file not found: {filepath}")
             
-        X_train, X_test, y_train, y_test, raw_prices, split_idx, test_dates = self.prepare_data(filepath)
+        X_train, X_test, y_train, y_test, raw_prices, split_idx, test_dates, latest_indicators = self.prepare_data(filepath)
         
         # Convert to PyTorch tensors
         X_train_t = torch.tensor(X_train, dtype=torch.float32)
@@ -176,7 +186,8 @@ class StockPredictorEngine:
             "last_prices": self.last_prices,
             "test_dates": test_dates,
             "actual_prices": y_test_unscaled.flatten().tolist(),
-            "predicted_prices": predictions_unscaled.flatten().tolist()
+            "predicted_prices": predictions_unscaled.flatten().tolist(),
+            "latest_indicators": latest_indicators
         }
 
     def save_chart(self, actual, predicted, stock_name):

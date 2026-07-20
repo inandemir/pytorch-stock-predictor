@@ -262,6 +262,9 @@ def generate_stock_report():
     temp = request.args.get("temperature", 0.3)
     max_tok = request.args.get("max_tokens", 600)
     freq_pen = request.args.get("frequency_penalty", 1.2)
+    risk = request.args.get("risk", "medium")
+    horizon = request.args.get("horizon", "medium")
+    currency = request.args.get("currency", "USD")
     
     try:
         temp = float(temp)
@@ -364,13 +367,26 @@ def generate_stock_report():
         else:
             news_context = "Son haberlere ulaşılamadı.\n"
             
+        # Risk profile explanations
+        risk_labels = {"low": "Korumacı (Düşük Risk toleranslı, güvenli enstrümanlar odaklı)", 
+                       "medium": "Dengeli (Orta Risk toleranslı)", 
+                       "high": "Agresif (Yüksek Risk toleranslı, volatiliteyi fırsat gören)"}
+        horizon_labels = {"short": "Kısa Vade (Haftalık/Aylık kazanç odaklı)", 
+                          "medium": "Orta Vade (Aylık/Yıllık)", 
+                          "long": "Uzun Vade (Yıllık yatırım ve kalıcı büyüme odaklı)"}
+        
         prompt = f"""Sen yerel ve çevrimdışı çalışan, uzman bir Yapay Zeka Finansal Analistisin. 
 Aşağıdaki LSTM fiyat tahmini verilerini ve hisseye dair en son haber başlıklarını/özetlerini harmanlayarak yatırımcılara yönelik Türkçe detaylı bir borsa analiz raporu yaz.
 
+Kullanıcı Yatırım Profili & Tercihleri:
+- Risk Toleransı: {risk_labels.get(risk, risk)}
+- Yatırım Vadesi: {horizon_labels.get(horizon, horizon)}
+- Tercih Edilen Para Birimi: {currency}
+
 Hisse Senedi Ticker: {ticker_symbol}
 Yapay Zeka (LSTM) Tahmin Verileri:
-- Son Kapanış Fiyatı: ${last_close:.2f}
-- Yarın İçin LSTM Tahmini: ${pred_price:.2f}
+- Son Kapanış Fiyatı: {currency} {last_close:.2f}
+- Yarın İçin LSTM Tahmini: {currency} {pred_price:.2f}
 - Tahmin Edilen Değişim: {price_change:+.2f} ({pct_change:+.2f}%)
 - Öngörülen Trend: {trend_direction}
 
@@ -379,6 +395,8 @@ Yahoo Finance'ten Alınan Son Haberler ve NLP Duygu Analizi Skorları (RAG Bağl
 
 Haber Listesi:
 {news_context}
+
+Lütfen bu rapora ve yatırım tavsiyelerine kullanıcının bu risk toleransına ve vade profiline göre şekil ver. Örneğin risk toleransı yüksekse daha agresif fırsatları, düşükse güvenli limanları ve riskleri öne çıkar.
 
 Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:
 
@@ -389,7 +407,7 @@ Lütfen raporu tam olarak şu Markdown başlıkları ve yapısıyla yaz:
 (RAG ile çekilen haber başlıklarını inceleyerek, olumlu ve olumsuz haberleri listele ve bu haberlerin hisseye olası etkilerini finansal açıdan yorumla.)
 
 ### 💡 AI Yatırım Tavsiyesi & Değerlendirme
-(LSTM sayısal tahmini ile haberlerin analizini harmanlayarak, yerel LLM olarak bu hisse senedi hakkında kısa vadeli bir Türkçe yatırım değerlendirmesi yaz. Yatırımcılara somut öneriler sun.)
+(LSTM sayısal tahmini ile haberlerin analizini harmanlayarak, yerel LLM olarak bu hisse senedi hakkında kullanıcının risk toleransına ve vadesine uygun bir Türkçe yatırım değerlendirmesi yaz. Yatırımcılara somut öneriler sun.)
 """
         
         # 5. Call LLM (Generation)
@@ -454,6 +472,9 @@ def chat_stock_agent():
     temp = request.args.get("temperature", 0.3)
     max_tok = request.args.get("max_tokens", 600)
     freq_pen = request.args.get("frequency_penalty", 1.2)
+    risk = request.args.get("risk", "medium")
+    horizon = request.args.get("horizon", "medium")
+    currency = request.args.get("currency", "USD")
     
     try:
         temp = float(temp)
@@ -549,9 +570,17 @@ def chat_stock_agent():
             retrieved_context = "Hisse hakkında özel not, bilgi veya haber bulunamadı."
             
         # 5. Build prompt
+        risk_labels = {"low": "Korumacı (Düşük Risk)", "medium": "Dengeli (Orta Risk)", "high": "Agresif (Yüksek Risk)"}
+        horizon_labels = {"short": "Kısa Vade (Haftalık/Aylık)", "medium": "Orta Vade (Aylık/Yıllık)", "long": "Uzun Vade (Yıllık)"}
+        
         prompt = f"""Sen yerel ve çevrimdışı çalışan, uzman bir Yapay Zeka Finansal Analistisin. 
 Aşağıdaki finansal bağlamı (RAG) kullanarak kullanıcının borsa/yatırım hakkındaki sorusunu Türkçe ve detaylı olarak yanıtla. 
-Eğer verilen bağlam soruyu doğrudan cevaplamak için yetersizse, kendi borsa bilgilerini de katarak mantıklı bir çıkarımda bulun ancak öncelikle dökümanlardan elde edilen RAG bağlamını temel al.
+Erişilen bağlamı, kullanıcının kişisel yatırımcı profiliyle (risk seviyesi ve yatırım vadesi) eşleştirerek yanıtına yön ver.
+
+Kullanıcı Yatırım Profili:
+- Risk Toleransı: {risk_labels.get(risk, risk)}
+- Yatırım Vadesi: {horizon_labels.get(horizon, horizon)}
+- Tercih Edilen Para Birimi: {currency}
 
 Hisse Senedi: {ticker_symbol}
 Kullanıcı Sorusu: {query}
