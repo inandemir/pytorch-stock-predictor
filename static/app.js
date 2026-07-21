@@ -82,6 +82,7 @@ const sentimentPosFill = document.getElementById("sentiment-pos-fill");
 const sentimentNeuFill = document.getElementById("sentiment-neu-fill");
 const sentimentNegFill = document.getElementById("sentiment-neg-fill");
 const marketStatsTbody = document.getElementById("market-stats-tbody");
+const btnClearChat = document.getElementById("btn-clear-chat");
 
 // Global State
 let activeTicker = "";
@@ -152,7 +153,17 @@ function setupEventListeners() {
     // Read modal close
     btnCloseReadModal.addEventListener("click", closeReadModal);
 
-
+    // Clear chat click
+    if (btnClearChat) {
+        btnClearChat.addEventListener("click", () => {
+            chatMessages.innerHTML = `
+                <div class="chat-bubble ai" style="align-self:flex-start; background:rgba(138,43,226,0.15); border:1px solid rgba(138,43,226,0.3); border-radius:12px 12px 12px 2px; padding:8px 12px; color:var(--text-main); font-size:0.85rem; max-width:85%; line-height:1.5;">
+                    Sistem hazır. Seçili hisse senedi hakkında dilediğiniz soruyu sorabilirsiniz.
+                </div>
+            `;
+            logConsole("[SOHBET] Sohbet geçmişi temizlendi.");
+        });
+    }
 }
 
 // 3. Log to Monospace Console
@@ -173,6 +184,8 @@ async function startAnalysis() {
         alert("Lütfen geçerli bir hisse senedi kodu girin (örn: TSLA, AAPL).");
         return;
     }
+    
+    document.title = `[${ticker}] Veriler İndiriliyor... | FIN-AGENT`;
     
     activeTicker = ticker;
     btnAnalyze.disabled = true;
@@ -229,6 +242,7 @@ async function startAnalysis() {
 
 // 5. Trigger PyTorch LSTM training automatically
 async function startTraining(filename) {
+    document.title = `[${activeTicker}] LSTM Model Eğitiliyor... | FIN-AGENT`;
     processStateVal.textContent = "MODEL EĞİTİLİYOR...";
     processStateVal.style.color = "var(--neon-yellow)";
     
@@ -342,6 +356,7 @@ function pollTrainingStatus() {
 
 // 7. Trigger Local LLM RAG Report Generation
 function generateRAGReport() {
+    document.title = `[${activeTicker}] Rapor Hazırlanıyor... | FIN-AGENT`;
     processStateVal.textContent = "RAPOR HAZIRLANIYOR (RAG)...";
     processStateVal.style.color = "var(--neon-blue)";
     
@@ -408,6 +423,8 @@ function generateRAGReport() {
             processStateVal.textContent = "ANALİZ TAMAMLANDI!";
             processStateVal.style.color = "var(--neon-green)";
             
+            document.title = `[${activeTicker}] Raporu Hazır | FIN-AGENT`;
+            
             btnAnalyze.disabled = false;
             tickerInput.disabled = false;
             logConsole(`[RAG] Analiz raporu başarıyla oluşturuldu!`);
@@ -423,6 +440,7 @@ function generateRAGReport() {
 
 // 8. Handle Pipeline Failures
 function handleFailure(message) {
+    document.title = `Local RAG Finansal Yapay Zeka Ajanı`;
     processStateVal.textContent = "HATA OLUŞTU";
     processStateVal.style.color = "var(--neon-red)";
     
@@ -437,13 +455,26 @@ function handleFailure(message) {
 
 // 9. Render ApexCharts Line Chart
 function renderApexChart(metrics) {
+    const currency = localStorage.getItem("setting_currency") || "USD";
+    const currencySymbol = currency === "TRY" ? "₺" : (currency === "EUR" ? "€" : "$");
+
     if (apexChartInstance) {
         apexChartInstance.updateSeries([
             { name: 'Gerçek Fiyatlar', data: metrics.actual_prices.map(p => parseFloat(p.toFixed(2))) },
             { name: 'Yapay Zeka Tahmini', data: metrics.predicted_prices.map(p => parseFloat(p.toFixed(2))) }
         ]);
         apexChartInstance.updateOptions({
-            xaxis: { categories: metrics.test_dates }
+            xaxis: { categories: metrics.test_dates },
+            yaxis: {
+                labels: {
+                    formatter: function (value) { return currencySymbol + value.toFixed(2); }
+                }
+            },
+            tooltip: {
+                y: {
+                    formatter: function (value) { return currencySymbol + value.toFixed(2); }
+                }
+            }
         });
         return;
     }
@@ -501,7 +532,7 @@ function renderApexChart(metrics) {
         },
         yaxis: {
             labels: {
-                formatter: function (value) { return "$" + value.toFixed(2); },
+                formatter: function (value) { return currencySymbol + value.toFixed(2); },
                 style: { fontSize: '11px', fontWeight: 500 }
             }
         },
@@ -511,7 +542,7 @@ function renderApexChart(metrics) {
             x: { show: true },
             theme: 'dark',
             y: {
-                formatter: function (value) { return "$" + value.toFixed(2); }
+                formatter: function (value) { return currencySymbol + value.toFixed(2); }
             }
         },
         legend: {
@@ -858,6 +889,9 @@ function saveSettings() {
     localStorage.setItem("setting_temp", "0.3");
     localStorage.setItem("setting_tokens", "600");
     localStorage.setItem("setting_penalty", "1.2");
+
+    // BUG FIX: Reload stats to reflect currency update
+    loadMarketSummaryStats();
 
     alert("Tercihler ve Görsel Tema başarıyla kaydedildi.");
     logConsole("[SİSTEM] Genel borsa ayarları ve görsel tema güncellendi.");
